@@ -3,7 +3,7 @@ package mrlib
 const (
   Verbosity = 1
   MsgJOIN = "J"
-  msgMAPREDUCE = "MR"
+  MsgMAPREDUCE = "MR"
   MsgMAP_REQUEST = "M"
   MsgREDUCE_REQUEST = "R"
   MsgMAP_ANSWER = "Ma"

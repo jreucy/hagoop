@@ -2,11 +2,11 @@ package mrlib
 
 const (
   Verbosity = 1
-  MsgJOIN = "J"
-  MsgMAPREDUCE = "MR"
-  MsgMAP_REQUEST = "M"
-  MsgREDUCE_REQUEST = "R"
-  MsgMAP_ANSWER = "Ma"
-  MsgREDUCE_ANSWER = "Ra"
-  MsgFAIL = "X"
+  MsgJOIN = iota
+  MsgMAPREDUCE
+  MsgMAP_REQUEST
+  MsgREDUCE_REQUEST
+  MsgMAP_ANSWER
+  MsgREDUCE_ANSWER
+  MsgFAIL
 )

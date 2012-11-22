@@ -1,5 +1,15 @@
 package mrlib
 
+type packet struct {
+	msgTYPE int
+}
+
+type mrfile struct {
+	file string
+	start_line int
+	end_line int
+}
+
 const (
   Verbosity = 1
   MsgJOIN = iota

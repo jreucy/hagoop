@@ -19,6 +19,10 @@ func main() {
 	hostport := os.Args[1]
 
 	// Connect to server using TCP
+	serverAddr, err := net.ResolveTCPAddr("tcp", hostport)
+	if err != nil { /* do something */ }
+	conn, err := net.DialTCP("tcp", nil, serverAddr) // maybe change nil to something
+	if err != nil { /* do something */ }
 
 	// Let server know worker is available
 

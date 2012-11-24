@@ -1,5 +1,5 @@
 all:
-	go build go/main/main.go
+	go build go/src/main/main.go
 
 clean:
 	rm main

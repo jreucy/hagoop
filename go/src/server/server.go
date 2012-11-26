@@ -40,7 +40,8 @@ func main() {
 	if err != nil { /* do something */ }
 
 	// create new server object
-	server := &mrServer{}
+	emptyChan := make(chan bool, 0)
+	server := &mrServer{nil, nil, emptyChan, emptyChan, emptyChan, emptyChan}
 
 	// put into go routine to accept incoming connections
 	// only 2 iterations now because 1 request/ 1 worker

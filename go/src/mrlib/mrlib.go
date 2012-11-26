@@ -22,19 +22,6 @@ type MrAnswerPacket struct {
 	MsgType int
 }
 
-
-
-
-
-
-
-
-// for both map and reduce answers
-type answerPacket struct {
-	MsgTYPE int
-	Answer string
-}
-
 // maybe unnecessary
 type MrFile struct {
 	File string

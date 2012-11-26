@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	MAX_MESSAGE_SIZE = 1000 // change later
+	MaxMESSAGESIZE = 10000 // change later
 )
 
 func main() {
@@ -18,8 +18,8 @@ func main() {
 	if len(os.Args) != 4 { return }
 
 	hostport := os.Args[1]
-	file_directory := os.Args[2]
-	answer_file_name := os.Args[3]
+	fileDirectory := os.Args[2]
+	answerFileName := os.Args[3]
 
 	// connect to server with TCP
 	serverAddr, err := net.ResolveTCPAddr("tcp", hostport)
@@ -30,22 +30,22 @@ func main() {
 	// create mapreduce request and write to server
 	// change message type from string to different struct
 
-	mr_request := mrlib.MrRequestPacket{mrlib.MsgMAPREDUCE, file_directory, answer_file_name}
-	byte_mr_request, err := json.Marshal(mr_request)
+	mrRequest := mrlib.MrRequestPacket{mrlib.MsgMAPREDUCE, fileDirectory, answerFileName}
+	byteMrRequest, err := json.Marshal(mrRequest)
 	if err != nil { /* do something */ }
-	n, err := conn.Write(byte_mr_request)
+	n, err := conn.Write(byteMrRequest)
 	if err != nil { /* do something */ }
 
 
 	// read answer from server
-	byte_answer_msg := make([]byte, MAX_MESSAGE_SIZE)
-	n, err = conn.Read(byte_answer_msg[0:])
+	byteAnswerMsg := make([]byte, MaxMESSAGESIZE)
+	n, err = conn.Read(byteAnswerMsg[0:])
 	if err != nil { /* do something */ }
 
 
 	// get message from byte_msg and print to command-line
 	var answer mrlib.MrAnswerPacket
-	err = json.Unmarshal(byte_answer_msg[:n], &answer)
+	err = json.Unmarshal(byteAnswerMsg[:n], &answer)
 	if err != nil { /* do something */ }
 	switch (answer.MsgType) {
 	// if answer is good, print from file or something

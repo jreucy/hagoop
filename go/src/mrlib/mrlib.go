@@ -3,7 +3,7 @@ package mrlib
 type MrRequestPacket struct {
 	MsgTYPE int
 	Directory string
-	Answer_file_name string
+	AnswerFileName string
 }
 
 type MrWorkerPacket struct {
@@ -13,30 +13,46 @@ type MrWorkerPacket struct {
 
 type MrServerPacket struct {
 	MsgType int
-	File_name string
-	Start_line int
-	End_line int
+	FileName string
+	StartLine int
+	EndLine int
 }
 
 type MrAnswerPacket struct {
 	MsgType int
 }
 
+
+
+
+
+
+
+
+// for both map and reduce answers
+type answerPacket struct {
+	MsgTYPE int
+	Answer string
+}
+
 // maybe unnecessary
 type MrFile struct {
 	File string
-	Start_line int
-	End_line int
+	StartLine int
+	EndLine int
 }
 
 const (
-  Verbosity = 1
-  MsgJOIN = iota
-  MsgMAPREDUCE
-  MsgMAP_REQUEST
-  MsgREDUCE_REQUEST
-  MsgMAP_ANSWER
-  MsgREDUCE_ANSWER
-  MsgFAIL
-  MsgSUCCESS
+	Verbosity = 1
+	MaxMESSAGESIZE = 10000 // change later
+	MinJOBSIZE = 1000  // change
+	MaxJOBSIZE = 10000 // change
+	MsgJOIN = iota
+	MsgMAPREDUCE
+	MsgMAPREQUEST
+	MsgREDUCEREQUEST
+	MsgMAPANSWER
+	MsgREDUCEANSWER
+	MsgFAIL
+	MsgSUCCESS
 )

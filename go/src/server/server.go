@@ -14,6 +14,15 @@ const (
 	MAX_JOB_SIZE = 10000 // change
 )
 
+type mrServer struct {
+	requestConn *net.TCPConn      // single request client
+	workerConn *net.TCPConn       // single worker client
+	mapQueueNotEmpty chan bool    // placeholder, change to something better later
+	reduceQueueNotEmpty chan bool // look above
+	finishedAllMaps chan bool
+	finishedAllReduces chan bool
+}
+
 func main() {
 
 	// "./server port"
@@ -30,19 +39,100 @@ func main() {
 	serverListener, err := net.ListenTCP("tcp", serverAddr) // maybe change nil to something
 	if err != nil { /* do something */ }
 
-	// assuming a single request
-	// assuming request comes first
-	// later put in own goroutine
-	requestConn, err := serverListener.AcceptTCP()
-	if err != nil { /* do something */ }
+	// create new server object
+	server := &mrServer{}
 
-	// assuming worker comes second
-	workerConn, err := serverListener.AcceptTCP()
-	if err != nil { /* do something */ }
+	// put into go routine to accept incoming connections
+	// only 2 iterations now because 1 request/ 1 worker
+	for i := 0; i < 2; i++ {
+		conn, err := serverListener.AcceptTCP()
+		byteMsg := make([]byte, mrlib.MaxMESSAGESIZE)
+		n, err := conn.Read(byteMsg[0:])
+		if err != nil { /* do something */ }
+		var requestPacket mrlib.MrRequestPacket
+		var workerPacket mrlib.MrWorkerPacket
+		errRequest := json.Unmarshal(byteMsg[:n], &requestPacket)
+		errWorker := json.Unmarshal(byteMsg[:n], &workerPacket)
+		if errRequest == nil {
+			server.requestConn = conn
+			go server.requestHandler()
+		} else if errWorker == nil {
+			server.workerConn = conn
+			go server.workerHandler()
+		} else {
+			// do something
+		}
+	}
+
+	go server.eventHandler()
+}
+
+func (server *mrServer) eventHandler() {
+	for {
+		select {
+			case <-server.mapQueueNotEmpty:
+				// send map request
+				mapFile := ""
+				startLine := 0
+				endLine := 0
+				mapRequest := mrlib.MrServerPacket{ mrlib.MsgMAPREQUEST, mapFile, startLine, endLine }
+				byteMapRequest, err := json.Marshal(mapRequest)
+				if err != nil { /* do something */ }
+				_ , err = server.workerConn.Write(byteMapRequest)
+				if err != nil { /* do something */ }
+			case <-server.reduceQueueNotEmpty:
+				// send reduce request 
+				reduceFile := ""
+				startLine := 0
+				endLine := 0
+				reduceRequest := mrlib.MrServerPacket { mrlib.MsgREDUCEREQUEST, reduceFile, startLine, endLine }
+				byteReduceRequest, err := json.Marshal(reduceRequest)
+				if err != nil { /* do something */ }
+				_ , err = server.workerConn.Write(byteReduceRequest)
+				if err != nil { /* do something */ }
+			case <-server.finishedAllMaps:
+				// put request jobs in request queue 
+			case <-server.finishedAllReduces:
+				// send mapreduce answer to request client
+		}
+	}
+}
+
+// reads in answers from worker clients
+func (server *mrServer) workerHandler() {
+
+	var answer mrlib.MrWorkerPacket
+	byteAnswerMsg := make([]byte, mrlib.MaxMESSAGESIZE)
+
+	for {
+		n, err := server.workerConn.Read(byteAnswerMsg[0:])
+		if err != nil { /* do something */ }
+		err = json.Unmarshal(byteAnswerMsg[:n], &answer)
+		if err != nil { /* do something */ }
+
+		switch (answer.MsgTYPE) {
+		case mrlib.MsgMAPANSWER:
+			// mapAnswer := answer.Answer
+			// save string into file
+			break
+		case mrlib.MsgREDUCEANSWER:
+			// reduceAnswer := answer.Answer
+			// write reduce answer to specified file
+			break
+		}
+	}
+
+	return
+}
+
+// reads in requests from request clients
+func (server *mrServer) requestHandler() {
+
+	// put in for loop later for multiple request clients
 
 	// read in request packet
 	byteRequestMsg := make([]byte, mrlib.MaxMESSAGESIZE)
-	n, err := requestConn.Read(byteRequestMsg[0:])
+	n, err := server.requestConn.Read(byteRequestMsg[0:])
 	if err != nil { /* do something */ }
 	var request mrlib.MrRequestPacket
 	err = json.Unmarshal(byteRequestMsg[:n], &request)
@@ -52,63 +142,8 @@ func main() {
 	//answerFileName := request.AnswerFileName
 
 	// parse directory and save file name, starting/ending line numbers
-	mapFile := ""
-	startLine := 0
-	endLine := 0
 
-	// send map request
-	mapRequest := mrlib.MrServerPacket{ mrlib.MsgMAPREQUEST, mapFile, startLine, endLine }
-	byteMapRequest, err := json.Marshal(mapRequest)
-	if err != nil { /* do something */ }
-	n, err = workerConn.Write(byteMapRequest)
-	if err != nil { /* do something */ }
+	// place map jobs into buffer
 
-	// read map answer
-	byteAnswerMsg := make([]byte, mrlib.MaxMESSAGESIZE)
-	n, err = workerConn.Read(byteAnswerMsg[0:])
-	if err != nil { /* do something */ }
-	var answer mrlib.MrWorkerPacket
-	err = json.Unmarshal(byteRequestMsg[:n], &answer)
-	if err != nil { /* do something */ }
-	if answer.MsgTYPE != mrlib.MsgMAPANSWER { /* do something */ }
-	//mapAnswer := answer.Answer
-
-	// save string into file
-	reduceFile := ""
-	startLine = 0
-	endLine = 0
-
-	// send read request
-	reduceRequest := mrlib.MrServerPacket { mrlib.MsgREDUCEREQUEST, reduceFile, startLine, endLine }
-	byteReduceRequest, err := json.Marshal(reduceRequest)
-	if err != nil { /* do something */ }
-	n, err = workerConn.Write(byteReduceRequest)
-	if err != nil { /* do something */ }
-
-	// read reduce answer
-	byteAnswerMsg = make([]byte, mrlib.MaxMESSAGESIZE)
-	n, err = workerConn.Read(byteAnswerMsg[0:])
-	if err != nil { /* do something */ }
-	err = json.Unmarshal(byteRequestMsg[:n], &answer)
-	if err != nil { /* do something */ }
-	if answer.MsgTYPE != mrlib.MsgREDUCEANSWER { /* do something */ }
-	//reduceAnswer := answer.Answer
-
-	// write reduce answer to specified file
-
-	// send mapreduce answer to request
-
-
-
-
-
-	// for when we have multiple workers/clients
-	//for {
-		// Read in incoming requests from both request and worker clients
-
-
-
-		// schedule and assign pending jobs to available workers
-
-	//}
+	return
 }

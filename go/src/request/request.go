@@ -50,9 +50,7 @@ func main() {
 	switch (answer.MsgType) {
 	// if answer is good, print from file or something
 	case mrlib.MsgSUCCESS:
-		break
 	case mrlib.MsgFAIL:
-		return
 	default:
 		return
 	}

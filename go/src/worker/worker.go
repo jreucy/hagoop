@@ -44,7 +44,6 @@ func main() {
 			if err != nil { /* do something */ }
 			n, err = conn.Write(byteMapAnswer)
 			if err != nil { /* do something */ }
-			break
 		case mrlib.MsgREDUCEREQUEST:
 			// perform reduce job
 
@@ -54,7 +53,6 @@ func main() {
 			if err != nil { /* do something */ }
 			n, err = conn.Write(byteMapAnswer)
 			if err != nil { /* do something */ }
-			break
 		}
 	}
 

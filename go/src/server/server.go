@@ -21,6 +21,7 @@ type mrServer struct {
 	requestConn *net.TCPConn      // single request client
 	workerConn *net.TCPConn       // single worker client
 	mapList *list.List
+	binaryFileName string
 	mapQueueNotEmpty chan bool    // placeholder, change to something better later
 	reduceQueueNotEmpty chan bool // look above
 	finishedAllMaps chan bool
@@ -96,7 +97,7 @@ func (server *mrServer) eventHandler() {
 				// send map request to next available worker
 				mrFile := server.mapList.Remove(server.mapList.Front()).(mrlib.MrFile)
 				mapFile := mrFile.FileName
-				binaryFile := ""
+				binaryFile := server.binaryFileName
 				startLine := mrFile.StartLine
 				endLine := mrFile.EndLine
 				mapRequest := mrlib.ServerRequestPacket{ mrlib.MsgMAPREQUEST, mapFile, binaryFile, startLine, endLine }
@@ -105,7 +106,7 @@ func (server *mrServer) eventHandler() {
 			case <-server.reduceQueueNotEmpty:
 				// send reduce request to next available worker
 				reduceFile := ""
-				binaryFile := ""
+				binaryFile := server.binaryFileName
 				startLine := 0
 				endLine := 0
 				reduceRequest := mrlib.ServerRequestPacket { mrlib.MsgREDUCEREQUEST, reduceFile, binaryFile, startLine, endLine }
@@ -150,6 +151,7 @@ func (server *mrServer) requestHandler() {
 	var request mrlib.MrRequestPacket
 	request = mrlib.Read(server.requestConn, request).(mrlib.MrRequestPacket)	
 
+	server.binaryFileName = request.BinaryFile
 
 	// parse directory and save file name, starting/ending line numbers
 	// currently "directory" represents a single file

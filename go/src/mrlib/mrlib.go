@@ -7,6 +7,7 @@ type IdentifyPacket struct {
 type MrRequestPacket struct {
 	Directory string
 	AnswerFileName string
+	BinaryFile string
 }
 
 type WorkerAnswerPacket struct {
@@ -17,6 +18,7 @@ type WorkerAnswerPacket struct {
 type ServerRequestPacket struct {
 	MsgType int
 	FileName string
+	BinaryFile string
 	StartLine int
 	EndLine int
 }

@@ -100,9 +100,10 @@ func (server *mrServer) eventHandler() {
 				// send map request to next available worker
 				mrFile := server.mapList.Remove(server.mapList.Front()).(mrlib.MrFile)
 				mapFile := mrFile.FileName
+				binaryFile := ""
 				startLine := mrFile.StartLine
 				endLine := mrFile.EndLine
-				mapRequest := mrlib.ServerRequestPacket{ mrlib.MsgMAPREQUEST, mapFile, startLine, endLine }
+				mapRequest := mrlib.ServerRequestPacket{ mrlib.MsgMAPREQUEST, mapFile, binaryFile, startLine, endLine }
 				byteMapRequest, err := json.Marshal(mapRequest)
 				if err != nil { /* do something */ }
 				_ , err = server.workerConn.Write(byteMapRequest)
@@ -111,9 +112,10 @@ func (server *mrServer) eventHandler() {
 			case <-server.reduceQueueNotEmpty:
 				// send reduce request to next available worker
 				reduceFile := ""
+				binaryFile := ""
 				startLine := 0
 				endLine := 0
-				reduceRequest := mrlib.ServerRequestPacket { mrlib.MsgREDUCEREQUEST, reduceFile, startLine, endLine }
+				reduceRequest := mrlib.ServerRequestPacket { mrlib.MsgREDUCEREQUEST, reduceFile, binaryFile, startLine, endLine }
 				byteReduceRequest, err := json.Marshal(reduceRequest)
 				if err != nil { /* do something */ }
 				_ , err = server.workerConn.Write(byteReduceRequest)

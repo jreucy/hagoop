@@ -22,9 +22,9 @@ func main() {
 	binaryName := os.Args[4]
 
 	// connect to server with TCP
-	serverAddr, err := net.ResolveTCPAddr("tcp", hostport)
+	serverAddr, err := net.ResolveTCPAddr(mrlib.TCP, hostport)
 	if err != nil { /* do something */ }
-	conn, err := net.DialTCP("tcp", nil, serverAddr) // maybe change nil to something
+	conn, err := net.DialTCP(mrlib.TCP, nil, serverAddr) // maybe change nil to something
 	if err != nil { /* do something */ }
 
 	// identify as request client

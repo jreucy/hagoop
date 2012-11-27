@@ -59,6 +59,9 @@ func Read(conn *net.TCPConn, varPointer interface{}) interface{} {
 
 const (
 	Verbosity = 1
+	TCP = "tcp"
+	MAP = "map"
+	REDUCE = "reduce"
 	MaxMESSAGESIZE = 10000 // change later
 	MinJOBSIZE = 1000  // change
 	MaxJOBSIZE = 10000 // change

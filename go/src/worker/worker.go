@@ -21,9 +21,9 @@ func main() {
 	hostport := os.Args[1]
 
 	// Connect to server using TCP
-	serverAddr, err := net.ResolveTCPAddr("tcp", hostport)
+	serverAddr, err := net.ResolveTCPAddr(mrlib.TCP, hostport)
 	if err != nil { /* do something */ }
-	conn, err := net.DialTCP("tcp", nil, serverAddr) // maybe change nil to something
+	conn, err := net.DialTCP(mrlib.TCP, nil, serverAddr) // maybe change nil to something
 	if err != nil { /* do something */ }
 
 	// identify as worker client
@@ -35,13 +35,13 @@ func main() {
 		var request mrlib.ServerRequestPacket
 		request = mrlib.Read(conn, request).(mrlib.ServerRequestPacket)
 
-		answerPacket := mrlib.WorkerAnswerPacket{mrlib.MsgMAPANSWER, ""}
+		answerPacket := mrlib.WorkerAnswerPacket{}
 		switch (request.MsgType) {
 		case mrlib.MsgMAPREQUEST:
-			cmd := exec.Command(request.BinaryFile, "map",  request.FileName, strconv.Itoa(request.StartLine), strconv.Itoa(request.EndLine))
+			cmd := exec.Command(request.BinaryFile, mrlib.MAP,  request.FileName, strconv.Itoa(request.StartLine), strconv.Itoa(request.EndLine))
 			var out bytes.Buffer 
 			cmd.Stdout = &out 
-			err := cmd.Start()
+			err := cmd.Start()	
 			if err != nil {
 				// log.Fatal(err)
 			}
@@ -53,7 +53,7 @@ func main() {
 			answerPacket.Answer = out.String() // TODO : change
 
 		case mrlib.MsgREDUCEREQUEST:
-			cmd := exec.Command(request.BinaryFile, "reduce",  request.FileName, strconv.Itoa(request.StartLine), strconv.Itoa(request.EndLine))
+			cmd := exec.Command(request.BinaryFile, mrlib.REDUCE,  request.FileName, strconv.Itoa(request.StartLine), strconv.Itoa(request.EndLine))
 			var out bytes.Buffer 
 			cmd.Stdout = &out 
 			err := cmd.Start() 

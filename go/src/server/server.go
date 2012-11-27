@@ -43,9 +43,9 @@ func main() {
 
 	// connect to server with TCP
 	laddr := ":" + port
-	serverAddr, err := net.ResolveTCPAddr("tcp", laddr)
+	serverAddr, err := net.ResolveTCPAddr(mrlib.TCP, laddr)
 	if err != nil { /* do something */ }
-	serverListener, err := net.ListenTCP("tcp", serverAddr) // maybe change nil to something
+	serverListener, err := net.ListenTCP(mrlib.TCP, serverAddr) // maybe change nil to something
 	if err != nil { /* do something */ }
 
 	server := newServer(serverListener)

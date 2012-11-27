@@ -1,15 +1,15 @@
-all: worker request server main
+all: go/src/mrlib/mrlib.go worker request server main
 
-main:
+main: go/src/client/client-impl.go go/src/main/main.go
 	go build go/src/main/main.go
 
-worker:
+worker: go/src/worker/worker.go
 	go build go/src/worker/worker.go
 
-request:
+request: go/src/request/request.go
 	go build go/src/request/request.go
 
-server:
+server: go/src/server/server.go
 	go build go/src/server/server.go
 
 clean:

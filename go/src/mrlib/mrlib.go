@@ -3,6 +3,7 @@ package mrlib
 import (
 	"encoding/json"
 	"net"
+	"log"
 )
 
 
@@ -41,19 +42,17 @@ type MrFile struct {
 
 func Write(conn *net.TCPConn, msg interface{}) {
 	byteMsg, err := json.Marshal(msg)
-	if err != nil { /* do something */ }
+	if err != nil { log.Fatal("Write error: ", err) }
 	_ , err = conn.Write(byteMsg)
-	if err != nil { /* do something */ }
+	if err != nil { log.Fatal("Write error: ", err)  }
 }
 
-func Read(conn *net.TCPConn, varPointer interface{}) interface{} {
+func Read(conn *net.TCPConn, varPointer interface{}) {
 	byteMsg := make([]byte, MaxMESSAGESIZE)
-	readStruct := varPointer
 	n, err := conn.Read(byteMsg[0:])
-	if err != nil { /* do something */ }
-	err = json.Unmarshal(byteMsg[:n], &readStruct)
-	if err != nil { /* do something */ }
-	return readStruct
+	if err != nil { log.Fatal(err) }
+	err = json.Unmarshal(byteMsg[:n], varPointer)
+	if err != nil { log.Fatal(err) }
 }
 
 

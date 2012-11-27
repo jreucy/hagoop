@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"bytes"
 	"strconv"
+	"log"
 )
 
 const (
@@ -22,9 +23,9 @@ func main() {
 
 	// Connect to server using TCP
 	serverAddr, err := net.ResolveTCPAddr(mrlib.TCP, hostport)
-	if err != nil { /* do something */ }
+	if err != nil { log.Fatal("Worker: ", err) }
 	conn, err := net.DialTCP(mrlib.TCP, nil, serverAddr) // maybe change nil to something
-	if err != nil { /* do something */ }
+	if err != nil { log.Fatal("Worker: ", err) }
 
 	// identify as worker client
 	identifyPacket := mrlib.IdentifyPacket{mrlib.MsgWORKERCLIENT}
@@ -33,8 +34,8 @@ func main() {
 	for {
 		// Read in Map or Reduce requests from server
 		var request mrlib.ServerRequestPacket
-		request = mrlib.Read(conn, request).(mrlib.ServerRequestPacket)
-
+		mrlib.Read(conn, &request)
+		log.Println("Worker: ", request)
 		answerPacket := mrlib.WorkerAnswerPacket{}
 		switch (request.MsgType) {
 		case mrlib.MsgMAPREQUEST:
@@ -43,10 +44,9 @@ func main() {
 			cmd.Stdout = &out 
 			err := cmd.Start()	
 			if err != nil {
-				// log.Fatal(err)
+				log.Fatal("Worker: ", err)
 			}
 			err = cmd.Wait()
-			// TODO : perform map job
 
 			// send back results
 			answerPacket.MsgType = mrlib.MsgMAPANSWER
@@ -58,10 +58,9 @@ func main() {
 			cmd.Stdout = &out 
 			err := cmd.Start() 
 			if err != nil {
-				// log.Fatal(err)
+				log.Fatal(err)
 			}
 			err = cmd.Wait()
-			// TODO : perform reduce job
 
 			// send back results
 			answerPacket.MsgType = mrlib.MsgREDUCEANSWER

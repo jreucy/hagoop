@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"net"
 	"os"
+	"log"
 	//"fmt"
 	//"io"
 )
@@ -44,13 +45,13 @@ func main() {
 	// connect to server with TCP
 	laddr := ":" + port
 	serverAddr, err := net.ResolveTCPAddr(mrlib.TCP, laddr)
-	if err != nil { /* do something */ }
+	if err != nil { log.Fatal(err) }
 	serverListener, err := net.ListenTCP(mrlib.TCP, serverAddr) // maybe change nil to something
-	if err != nil { /* do something */ }
+	if err != nil { log.Fatal(err) }
 
 	server := newServer(serverListener)
 	go server.connectionHandler()
-	go server.eventHandler()
+	server.eventHandler()
 }
 
 func newServer(serverListener *net.TCPListener) *mrServer {
@@ -73,10 +74,10 @@ func (server *mrServer) connectionHandler() {
 	// later change to loop forever
 	for i := 0; i < 2; i++ {
 		conn, err := server.connListener.AcceptTCP()
-		if err != nil { /* do something */ }
+		if err != nil { log.Fatal(err) }
 		var identifyPacket mrlib.IdentifyPacket
-		identifyPacket = mrlib.Read(conn, identifyPacket).(mrlib.IdentifyPacket)
-
+		mrlib.Read(conn, &identifyPacket)
+		log.Println(identifyPacket.MsgType)
 		switch (identifyPacket.MsgType) {
 		case mrlib.MsgREQUESTCLIENT:
 			server.requestConn = conn
@@ -84,7 +85,7 @@ func (server *mrServer) connectionHandler() {
 		case mrlib.MsgWORKERCLIENT:
 			server.workerConn = conn
 			go server.workerHandler()
-		default:
+		// default:
 			// do something, break, etc.
 		}
 	}
@@ -94,6 +95,7 @@ func (server *mrServer) eventHandler() {
 	for {
 		select {
 			case <-server.mapQueueNotEmpty:
+				log.Println("MAP")
 				// send map request to next available worker
 				mrFile := server.mapList.Remove(server.mapList.Front()).(mrlib.MrFile)
 				mapFile := mrFile.FileName
@@ -105,6 +107,7 @@ func (server *mrServer) eventHandler() {
 				// TODO : re-insert remaining file to front of list
 			case <-server.reduceQueueNotEmpty:
 				// send reduce request to next available worker
+				log.Println("REDUCE")
 				reduceFile := ""
 				binaryFile := server.binaryFileName
 				startLine := 0
@@ -129,8 +132,8 @@ func (server *mrServer) workerHandler() {
 	var answer mrlib.WorkerAnswerPacket
 
 	for {
-		answer = mrlib.Read(server.workerConn, answer).(mrlib.WorkerAnswerPacket)
-
+		mrlib.Read(server.workerConn, &answer)
+		log.Println("W: ", answer)
 		switch (answer.MsgType) {
 		case mrlib.MsgMAPANSWER:
 			server.saveMapToFile <- answer.Answer
@@ -144,12 +147,11 @@ func (server *mrServer) workerHandler() {
 
 // reads in requests from request clients
 func (server *mrServer) requestHandler() {
-
 	// put in for loop later for multiple request clients
 
 	// read in request packet
 	var request mrlib.MrRequestPacket
-	request = mrlib.Read(server.requestConn, request).(mrlib.MrRequestPacket)	
+	mrlib.Read(server.requestConn, &request)	
 
 	server.binaryFileName = request.BinaryFile
 

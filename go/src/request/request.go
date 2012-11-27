@@ -37,7 +37,7 @@ func main() {
 
 	// read answer from server
 	var answer mrlib.MrAnswerPacket
-	answer = mrlib.Read(conn, answer).(mrlib.MrAnswerPacket)
+	mrlib.Read(conn, &answer)
 
 	// get message from byte_msg and print to command-line
 	switch (answer.MsgType) {

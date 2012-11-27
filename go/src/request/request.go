@@ -13,8 +13,8 @@ const (
 
 func main() {
 
-	// "./request host:port [file_directory] [file_name]"
-	if len(os.Args) != 4 { return }
+	// "./request host:port [file_directory] [file_name] [binary_name]"
+	if len(os.Args) != 5 { return }
 
 	hostport := os.Args[1]
 	fileDirectory := os.Args[2]

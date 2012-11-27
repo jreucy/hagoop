@@ -94,9 +94,10 @@ func (server *mrServer) eventHandler() {
 			case <-server.mapQueueNotEmpty:
 				// send map request to next available worker
 				mapFile := ""
+				binaryFile := ""
 				startLine := 0
 				endLine := 0
-				mapRequest := mrlib.ServerRequestPacket{ mrlib.MsgMAPREQUEST, mapFile, startLine, endLine }
+				mapRequest := mrlib.ServerRequestPacket{ mrlib.MsgMAPREQUEST, mapFile, binaryFile, startLine, endLine }
 				byteMapRequest, err := json.Marshal(mapRequest)
 				if err != nil { /* do something */ }
 				_ , err = server.workerConn.Write(byteMapRequest)
@@ -104,9 +105,10 @@ func (server *mrServer) eventHandler() {
 			case <-server.reduceQueueNotEmpty:
 				// send reduce request to next available worker
 				reduceFile := ""
+				binaryFile := ""
 				startLine := 0
 				endLine := 0
-				reduceRequest := mrlib.ServerRequestPacket { mrlib.MsgREDUCEREQUEST, reduceFile, startLine, endLine }
+				reduceRequest := mrlib.ServerRequestPacket { mrlib.MsgREDUCEREQUEST, reduceFile, binaryFile, startLine, endLine }
 				byteReduceRequest, err := json.Marshal(reduceRequest)
 				if err != nil { /* do something */ }
 				_ , err = server.workerConn.Write(byteReduceRequest)

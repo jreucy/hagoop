@@ -6,6 +6,9 @@ import (
 	"mrlib"
 	"net"
 	"os"
+	"os/exec"
+	"bytes"
+	"strconv"
 	//"fmt"
 )
 
@@ -46,18 +49,34 @@ func main() {
 
 		switch (request.MsgType) {
 		case mrlib.MsgMAPREQUEST:
+			cmd := exec.Command(request.BinaryFile, "map",  request.FileName, strconv.Itoa(request.StartLine), strconv.Itoa(request.EndLine))
+			var out bytes.Buffer 
+			cmd.Stdout = &out 
+			err := cmd.Start() 
+			if err != nil {
+				// log.Fatal(err)
+			}
+			err = cmd.Wait()
 			// TODO : perform map job
 
 			// send back results
 			answerPacket.MsgType = mrlib.MsgMAPANSWER
-			answerPacket.Answer = "" // TODO : change
+			answerPacket.Answer = out.String() // TODO : change
 
 		case mrlib.MsgREDUCEREQUEST:
+			cmd := exec.Command(request.BinaryFile, "reduce",  request.FileName, strconv.Itoa(request.StartLine), strconv.Itoa(request.EndLine))
+			var out bytes.Buffer 
+			cmd.Stdout = &out 
+			err := cmd.Start() 
+			if err != nil {
+				// log.Fatal(err)
+			}
+			err = cmd.Wait()
 			// TODO : perform reduce job
 
 			// send back results
 			answerPacket.MsgType = mrlib.MsgREDUCEANSWER
-			answerPacket.Answer = "" // TODO : change
+			answerPacket.Answer = out.String() // TODO : change
 		}
 
 		// send answer back to server

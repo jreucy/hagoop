@@ -20,6 +20,7 @@ func main() {
 	hostport := os.Args[1]
 	fileDirectory := os.Args[2]
 	answerFileName := os.Args[3]
+	binaryName := os.Args[4]
 
 	// connect to server with TCP
 	serverAddr, err := net.ResolveTCPAddr("tcp", hostport)
@@ -35,7 +36,7 @@ func main() {
 	if err != nil { /* do something */ }
 
 	// create mapreduce request and write to server
-	mrRequest := mrlib.MrRequestPacket{fileDirectory, answerFileName}
+	mrRequest := mrlib.MrRequestPacket{fileDirectory, answerFileName, binaryName}
 	byteMrRequest, err := json.Marshal(mrRequest)
 	if err != nil { /* do something */ }
 	n, err = conn.Write(byteMrRequest)

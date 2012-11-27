@@ -30,8 +30,7 @@ const (
 	MaxMESSAGESIZE = 10000 // change later
 	MinJOBSIZE = 1000  // change
 	MaxJOBSIZE = 10000 // change
-	MsgJOIN = iota
-	MsgREQUESTCLIENT
+	MsgREQUESTCLIENT = iota
 	MsgWORKERCLIENT
 	MsgMAPREQUEST
 	MsgREDUCEREQUEST

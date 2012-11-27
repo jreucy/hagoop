@@ -95,7 +95,6 @@ func (server *mrServer) eventHandler() {
 	for {
 		select {
 			case <-server.mapQueueNotEmpty:
-				log.Println("MAP")
 				// send map request to next available worker
 				mrFile := server.mapList.Remove(server.mapList.Front()).(mrlib.MrFile)
 				mapFile := mrFile.FileName
@@ -107,7 +106,6 @@ func (server *mrServer) eventHandler() {
 				// TODO : re-insert remaining file to front of list
 			case <-server.reduceQueueNotEmpty:
 				// send reduce request to next available worker
-				log.Println("REDUCE")
 				reduceFile := ""
 				binaryFile := server.binaryFileName
 				startLine := 0

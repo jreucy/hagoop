@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"mrlib"
 	"net"
 	"os"
@@ -30,27 +29,17 @@ func main() {
 
 	// identify as request client
 	identifyPacket := mrlib.IdentifyPacket{mrlib.MsgREQUESTCLIENT}
-	byteIdentifyPacket, err := json.Marshal(identifyPacket)
-	if err != nil { /* do something */ }
-	n, err := conn.Write(byteIdentifyPacket)
-	if err != nil { /* do something */ }
+	mrlib.Write(conn, identifyPacket)
 
 	// create mapreduce request and write to server
 	mrRequest := mrlib.MrRequestPacket{fileDirectory, answerFileName, binaryName}
-	byteMrRequest, err := json.Marshal(mrRequest)
-	if err != nil { /* do something */ }
-	n, err = conn.Write(byteMrRequest)
-	if err != nil { /* do something */ }
+	mrlib.Write(conn, mrRequest)
 
 	// read answer from server
-	byteAnswerMsg := make([]byte, MaxMESSAGESIZE)
-	n, err = conn.Read(byteAnswerMsg[0:])
-	if err != nil { /* do something */ }
+	var answer mrlib.MrAnswerPacket
+	answer = mrlib.Read(conn, answer).(mrlib.MrAnswerPacket)
 
 	// get message from byte_msg and print to command-line
-	var answer mrlib.MrAnswerPacket
-	err = json.Unmarshal(byteAnswerMsg[:n], &answer)
-	if err != nil { /* do something */ }
 	switch (answer.MsgType) {
 	case mrlib.MsgSUCCESS:
 		// TODO : print from file or something

@@ -1,15 +1,12 @@
 package main
 
 import (
-	"encoding/json"
-	//"strconv"
 	"mrlib"
 	"net"
 	"os"
 	"os/exec"
 	"bytes"
 	"strconv"
-	//"fmt"
 )
 
 const (
@@ -31,28 +28,20 @@ func main() {
 
 	// identify as worker client
 	identifyPacket := mrlib.IdentifyPacket{mrlib.MsgWORKERCLIENT}
-	byteIdentifyPacket, err := json.Marshal(identifyPacket)
-	if err != nil { /* do something */ }
-	_ , err = conn.Write(byteIdentifyPacket)
-	if err != nil { /* do something */ }
+	mrlib.Write(conn, identifyPacket)
 
 	for {
 		// Read in Map or Reduce requests from server
-		byteRequestMsg := make([]byte, mrlib.MaxMESSAGESIZE)
-		n, err := conn.Read(byteRequestMsg[0:])
-		if err != nil { /* do something */ }
 		var request mrlib.ServerRequestPacket
-		err = json.Unmarshal(byteRequestMsg[:n], &request)
-		if err != nil { /* do something */ }
+		request = mrlib.Read(conn, request).(mrlib.ServerRequestPacket)
 
 		answerPacket := mrlib.WorkerAnswerPacket{mrlib.MsgMAPANSWER, ""}
-
 		switch (request.MsgType) {
 		case mrlib.MsgMAPREQUEST:
 			cmd := exec.Command(request.BinaryFile, "map",  request.FileName, strconv.Itoa(request.StartLine), strconv.Itoa(request.EndLine))
 			var out bytes.Buffer 
 			cmd.Stdout = &out 
-			err := cmd.Start() 
+			err := cmd.Start()
 			if err != nil {
 				// log.Fatal(err)
 			}
@@ -79,13 +68,7 @@ func main() {
 			answerPacket.Answer = out.String() // TODO : change
 		}
 
-		// send answer back to server
-		byteAnswer, err := json.Marshal(answerPacket)
-		if err != nil { /* do something */ }
-		n, err = conn.Write(byteAnswer)
-		if err != nil { /* do something */ }
-
-
+		mrlib.Write(conn, answerPacket)
 	}
 
 }

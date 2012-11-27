@@ -2,13 +2,12 @@ package main
 
 import (
 	"container/list"
-	"encoding/json"
 	"strconv"
 	"mrlib"
 	"bufio"
 	"net"
-	//"fmt"
 	"os"
+	//"fmt"
 	//"io"
 )
 
@@ -73,12 +72,9 @@ func (server *mrServer) connectionHandler() {
 	// later change to loop forever
 	for i := 0; i < 2; i++ {
 		conn, err := server.connListener.AcceptTCP()
-		byteMsg := make([]byte, mrlib.MaxMESSAGESIZE)
-		n, err := conn.Read(byteMsg[0:])
 		if err != nil { /* do something */ }
 		var identifyPacket mrlib.IdentifyPacket
-		err = json.Unmarshal(byteMsg[:n], &identifyPacket)
-		if err != nil { /* do something */ }
+		identifyPacket = mrlib.Read(conn, identifyPacket).(mrlib.IdentifyPacket)
 
 		switch (identifyPacket.MsgType) {
 		case mrlib.MsgREQUESTCLIENT:
@@ -104,10 +100,7 @@ func (server *mrServer) eventHandler() {
 				startLine := mrFile.StartLine
 				endLine := mrFile.EndLine
 				mapRequest := mrlib.ServerRequestPacket{ mrlib.MsgMAPREQUEST, mapFile, binaryFile, startLine, endLine }
-				byteMapRequest, err := json.Marshal(mapRequest)
-				if err != nil { /* do something */ }
-				_ , err = server.workerConn.Write(byteMapRequest)
-				if err != nil { /* do something */ }
+				mrlib.Write(server.workerConn, mapRequest)
 				// TODO : re-insert remaining file to front of list
 			case <-server.reduceQueueNotEmpty:
 				// send reduce request to next available worker
@@ -116,10 +109,7 @@ func (server *mrServer) eventHandler() {
 				startLine := 0
 				endLine := 0
 				reduceRequest := mrlib.ServerRequestPacket { mrlib.MsgREDUCEREQUEST, reduceFile, binaryFile, startLine, endLine }
-				byteReduceRequest, err := json.Marshal(reduceRequest)
-				if err != nil { /* do something */ }
-				_ , err = server.workerConn.Write(byteReduceRequest)
-				if err != nil { /* do something */ }
+				mrlib.Write(server.workerConn, reduceRequest)
 			case <-server.saveMapToFile:
 				// save map answer to file
 			case <-server.saveReduceToFile:
@@ -136,13 +126,9 @@ func (server *mrServer) eventHandler() {
 func (server *mrServer) workerHandler() {
 
 	var answer mrlib.WorkerAnswerPacket
-	byteAnswerMsg := make([]byte, mrlib.MaxMESSAGESIZE)
 
 	for {
-		n, err := server.workerConn.Read(byteAnswerMsg[0:])
-		if err != nil { /* do something */ }
-		err = json.Unmarshal(byteAnswerMsg[:n], &answer)
-		if err != nil { /* do something */ }
+		answer = mrlib.Read(server.workerConn, answer).(mrlib.WorkerAnswerPacket)
 
 		switch (answer.MsgType) {
 		case mrlib.MsgMAPANSWER:
@@ -161,12 +147,9 @@ func (server *mrServer) requestHandler() {
 	// put in for loop later for multiple request clients
 
 	// read in request packet
-	byteRequestMsg := make([]byte, mrlib.MaxMESSAGESIZE)
-	n, err := server.requestConn.Read(byteRequestMsg[0:])
-	if err != nil { /* do something */ }
 	var request mrlib.MrRequestPacket
-	err = json.Unmarshal(byteRequestMsg[:n], &request)
-	if err != nil { /* do something */ }
+	request = mrlib.Read(server.requestConn, request).(mrlib.MrRequestPacket)	
+
 
 	// parse directory and save file name, starting/ending line numbers
 	// currently "directory" represents a single file
@@ -187,6 +170,7 @@ func (server *mrServer) requestHandler() {
 
 	// place map job into buffer
 	server.mapList.PushBack(mrFile)
+	server.mapQueueNotEmpty <- true
 
 	return
 }

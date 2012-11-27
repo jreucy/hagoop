@@ -1,17 +1,20 @@
 package mrlib
 
+type IdentifyPacket struct {
+	MsgType int
+}
+
 type MrRequestPacket struct {
-	MsgTYPE int
 	Directory string
 	AnswerFileName string
 }
 
-type MrWorkerPacket struct {
-	MsgTYPE int
+type WorkerAnswerPacket struct {
+	MsgType int
 	Answer string
 }
 
-type MrServerPacket struct {
+type ServerRequestPacket struct {
 	MsgType int
 	FileName string
 	StartLine int
@@ -22,20 +25,14 @@ type MrAnswerPacket struct {
 	MsgType int
 }
 
-// maybe unnecessary
-type MrFile struct {
-	File string
-	StartLine int
-	EndLine int
-}
-
 const (
 	Verbosity = 1
 	MaxMESSAGESIZE = 10000 // change later
 	MinJOBSIZE = 1000  // change
 	MaxJOBSIZE = 10000 // change
 	MsgJOIN = iota
-	MsgMAPREDUCE
+	MsgREQUESTCLIENT
+	MsgWORKERCLIENT
 	MsgMAPREQUEST
 	MsgREDUCEREQUEST
 	MsgMAPANSWER

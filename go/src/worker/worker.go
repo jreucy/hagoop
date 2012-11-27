@@ -1,10 +1,12 @@
 package main
 
 import (
-	"strconv"
+	"encoding/json"
+	//"strconv"
 	"mrlib"
 	"net"
-	"fmt"
+	"os"
+	//"fmt"
 )
 
 const (
@@ -24,36 +26,47 @@ func main() {
 	conn, err := net.DialTCP("tcp", nil, serverAddr) // maybe change nil to something
 	if err != nil { /* do something */ }
 
-	for {
+	// identify as worker client
+	identifyPacket := mrlib.IdentifyPacket{mrlib.MsgWORKERCLIENT}
+	byteIdentifyPacket, err := json.Marshal(identifyPacket)
+	if err != nil { /* do something */ }
+	_ , err = conn.Write(byteIdentifyPacket)
+	if err != nil { /* do something */ }
 
+	for {
 		// Read in Map or Reduce requests from server
 		byteRequestMsg := make([]byte, mrlib.MaxMESSAGESIZE)
 		n, err := conn.Read(byteRequestMsg[0:])
 		if err != nil { /* do something */ }
-		var request mrlib.MrServerPacket
+		var request mrlib.ServerRequestPacket
 		err = json.Unmarshal(byteRequestMsg[:n], &request)
 		if err != nil { /* do something */ }
 
-		switch (request.MsgTYPE) {
+		answerPacket := mrlib.WorkerAnswerPacket{mrlib.MsgMAPANSWER, ""}
+
+		switch (request.MsgType) {
 		case mrlib.MsgMAPREQUEST:
-			// perform map job
+			// TODO : perform map job
 
 			// send back results
-			mapAnswer := mrlib.MrWorkerPacket{mrlib.MsgMAPANSWER, ""}
-			byteMapAnswer, err := json.Marshal(mapAnswer)
-			if err != nil { /* do something */ }
-			n, err = conn.Write(byteMapAnswer)
-			if err != nil { /* do something */ }
+			answerPacket.MsgType = mrlib.MsgMAPANSWER
+			answerPacket.Answer = "" // TODO : change
+
 		case mrlib.MsgREDUCEREQUEST:
-			// perform reduce job
+			// TODO : perform reduce job
 
 			// send back results
-			reduceAnswer := mrlib.MrWorkerPacket{mrlib.MsgREDUCEANSWER, ""}
-			byteReduceAnswer, err := json.Marshal(reduceAnswer)
-			if err != nil { /* do something */ }
-			n, err = conn.Write(byteMapAnswer)
-			if err != nil { /* do something */ }
+			answerPacket.MsgType = mrlib.MsgREDUCEANSWER
+			answerPacket.Answer = "" // TODO : change
 		}
+
+		// send answer back to server
+		byteAnswer, err := json.Marshal(answerPacket)
+		if err != nil { /* do something */ }
+		n, err = conn.Write(byteAnswer)
+		if err != nil { /* do something */ }
+
+
 	}
 
 }

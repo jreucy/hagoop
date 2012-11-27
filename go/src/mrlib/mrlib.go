@@ -25,6 +25,12 @@ type MrAnswerPacket struct {
 	MsgType int
 }
 
+type MrFile struct {
+	FileName string
+	StartLine int
+	EndLine int
+}
+
 const (
 	Verbosity = 1
 	MaxMESSAGESIZE = 10000 // change later

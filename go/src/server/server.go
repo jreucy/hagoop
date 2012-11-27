@@ -1,12 +1,15 @@
 package main
 
 import (
+	"container/list"
 	"encoding/json"
 	"strconv"
 	"mrlib"
+	"bufio"
 	"net"
 	//"fmt"
 	"os"
+	//"io"
 )
 
 const (
@@ -18,6 +21,7 @@ type mrServer struct {
 	connListener *net.TCPListener
 	requestConn *net.TCPConn      // single request client
 	workerConn *net.TCPConn       // single worker client
+	mapList *list.List
 	mapQueueNotEmpty chan bool    // placeholder, change to something better later
 	reduceQueueNotEmpty chan bool // look above
 	finishedAllMaps chan bool
@@ -54,6 +58,7 @@ func newServer(serverListener *net.TCPListener) *mrServer {
 	server.connListener = serverListener
 	server.requestConn = nil
 	server.workerConn = nil
+	server.mapList = list.New()
 	server.mapQueueNotEmpty = make(chan bool, 0)
 	server.reduceQueueNotEmpty = make(chan bool, 0)
 	server.finishedAllMaps = make(chan bool, 0)
@@ -93,14 +98,16 @@ func (server *mrServer) eventHandler() {
 		select {
 			case <-server.mapQueueNotEmpty:
 				// send map request to next available worker
-				mapFile := ""
-				startLine := 0
-				endLine := 0
+				mrFile := server.mapList.Remove(server.mapList.Front()).(mrlib.MrFile)
+				mapFile := mrFile.FileName
+				startLine := mrFile.StartLine
+				endLine := mrFile.EndLine
 				mapRequest := mrlib.ServerRequestPacket{ mrlib.MsgMAPREQUEST, mapFile, startLine, endLine }
 				byteMapRequest, err := json.Marshal(mapRequest)
 				if err != nil { /* do something */ }
 				_ , err = server.workerConn.Write(byteMapRequest)
 				if err != nil { /* do something */ }
+				// TODO : re-insert remaining file to front of list
 			case <-server.reduceQueueNotEmpty:
 				// send reduce request to next available worker
 				reduceFile := ""
@@ -160,8 +167,24 @@ func (server *mrServer) requestHandler() {
 	if err != nil { /* do something */ }
 
 	// parse directory and save file name, starting/ending line numbers
+	// currently "directory" represents a single file
+	file, err := os.Open(request.Directory) // TODO : change from directory to file
+	if err != nil { /* do something */ }
+	fileBuf := bufio.NewReader(file)
+	
+	startLine := 0
+	endLine := 0
 
-	// place map jobs into buffer
+	// determine the length of the file
+	err = nil
+	for err == nil {
+		_ , err = fileBuf.ReadString('\n')
+		endLine++
+	}
+	mrFile := mrlib.MrFile{request.Directory, startLine, endLine}
+
+	// place map job into buffer
+	server.mapList.PushBack(mrFile)
 
 	return
 }

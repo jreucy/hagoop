@@ -1,16 +1,16 @@
 package client
 
-import "strings"
+import "fmt"
 
 type Client interface {
-	Map(chunk string) string
-	Reduce(keyValues map[string][]string) string
+	Map(chunk string)
+	Reduce(keyValues map[string][]string)
 }
 
-func Pack(key string, val string) string {
-	return key + ", " + val + "\n"
-}
-
-func Unpack(keyVal string) []string {
-	return strings.Split(strings.TrimSpace(keyVal), ", ")
+func Emit(vals ...interface{}) {
+	fmt.Print(vals[0])
+	for i := 1; i < len(vals); i++ {
+		fmt.Print(", " + vals[i].(string))
+	}
+	fmt.Print("\n")
 }

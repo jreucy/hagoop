@@ -3,12 +3,15 @@ package main
 import (
 	"os"
 	"bufio"
-	"fmt"
 	"strings"
 	"strconv"
 	"../client"
 	"log"
 )
+
+func unpack(keyVal string) []string {
+	return strings.Split(strings.TrimSpace(keyVal), ", ")
+}
 
 func main() {
 	// ./main [map/reduce] [file] [start] [end]
@@ -38,7 +41,7 @@ func main() {
 		}
 		data = strings.Replace(data, "\n", " ", -1)
 		data = strings.TrimSpace(data)
-		fmt.Print(c.Map(data))
+		c.Map(data)
 	case "reduce":
 		preMap := make(map[string]string)
 		keyValues := make(map[string][]string)
@@ -57,7 +60,7 @@ func main() {
 		// determine the length of the file
 		for startLine != endLine {
 			line, _ := fileBuf.ReadString('\n')
-			keyVal := client.Unpack(line)
+			keyVal := unpack(line)
 			_, ok := preMap[keyVal[0]]
 			if ok {
 				preMap[keyVal[0]] += " " + keyVal[1]
@@ -71,6 +74,6 @@ func main() {
 			keyValues[i] = strings.Split(v, " ")
 		}
 
-		fmt.Print(c.Reduce(keyValues))
+		c.Reduce(keyValues)
 	}
 }

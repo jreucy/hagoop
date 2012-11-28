@@ -5,7 +5,7 @@ import (
 	"net"
 	"os"
 	"log"
-	//"fmt"
+	"fmt"
 )
 
 const (
@@ -32,7 +32,7 @@ func main() {
 	identifyPacket := mrlib.IdentifyPacket{mrlib.MsgREQUESTCLIENT}
 	mrlib.Write(conn, identifyPacket)
 
-	var acceptPacket mrlib.IdentifyPacket
+	var acceptPacket mrlib.MrAnswerPacket
 	mrlib.Read(conn, &acceptPacket)
 
 	if acceptPacket.MsgType != mrlib.MsgSUCCESS { log.Fatal("Request not accepted") }
@@ -48,7 +48,7 @@ func main() {
 	// get message from byte_msg and print to command-line
 	switch (answer.MsgType) {
 	case mrlib.MsgSUCCESS:
-		// TODO : print from file or something
+		fmt.Println("Success! Result saved in", answerFileName)
 		return
 	case mrlib.MsgFAIL:
 		// fmt.Println("MapReduce failed")

@@ -135,6 +135,8 @@ func (server *mrServer) eventHandler() {
 			case <-server.finishedAllReduces:
 				os.Remove(server.mapAnswerFile)
 				// Remove mapAnswer file now that reduces are done
+				done := mrlib.MrAnswerPacket{mrlib.MsgSUCCESS}
+				mrlib.Write(server.requestConn, done)
 				return
 				// send mapreduce answer to request client
 		}
@@ -185,7 +187,7 @@ func (server *mrServer) workerHandler() {
 
 // reads in requests from request clients
 func (server *mrServer) requestHandler() {
-	accept := mrlib.IdentifyPacket{mrlib.MsgSUCCESS}
+	accept := mrlib.MrAnswerPacket{mrlib.MsgSUCCESS}
 	mrlib.Write(server.requestConn, accept)
 	// put in for loop later for multiple request clients
 

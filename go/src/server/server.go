@@ -111,21 +111,24 @@ func (server *mrServer) eventHandler() {
 				// TODO : re-insert remaining file to front of list
 			case <-server.reduceQueueNotEmpty:
 				// send reduce request to next available worker
-				server.reduceList.Remove(server.reduceList.Front())
+				mrFile := server.reduceList.Remove(server.reduceList.Front()).(mrlib.MrFile)
 				reduceFile := server.mapAnswerFile
 				binaryFile := server.binaryFileName
-				startLine := 0
-				endLine := 0
+				startLine := mrFile.StartLine
+				endLine := mrFile.EndLine
 				reduceRequest := mrlib.ServerRequestPacket { mrlib.MsgREDUCEREQUEST, reduceFile, binaryFile, startLine, endLine }
 				mrlib.Write(server.workerConn, reduceRequest)
 			case answer := <-server.saveMapToFile:
 				file, err := os.Create(server.mapAnswerFile)
 				if err != nil { log.Fatal(err) }
 				file.WriteString(answer)
+				file.Close()
+				server.saveMapToFile <- "done"
 			case answer := <-server.saveReduceToFile:
 				file, err := os.Create(server.answerFileName)
 				if err != nil { log.Fatal(err) }
 				file.WriteString(answer)
+				file.Close()
 				// write reduce answer to specified file
 			case <-server.finishedAllMaps:
 				// put request jobs in request queue 
@@ -145,15 +148,29 @@ func (server *mrServer) workerHandler() {
 
 	for {
 		mrlib.Read(server.workerConn, &answer)
-		log.Println("W: ", answer)
 		switch (answer.MsgType) {
 		case mrlib.MsgMAPANSWER:
 			server.saveMapToFile <- answer.Answer
+			<-server.saveMapToFile
 
-			mrFile := mrlib.MrFile{server.mapAnswerFile, 0, 0}
+			file, err := os.Open(server.mapAnswerFile)
+			if err != nil { log.Fatal(err) }
+			fileBuf := bufio.NewReader(file)
+			
+			startLine := 0
+			endLine := 0
+
+			// determine the length of the file
+			err = nil
+			for err == nil {
+				_ , err = fileBuf.ReadString('\n')
+				endLine++
+			}
+			mrFile := mrlib.MrFile{server.mapAnswerFile, startLine, endLine-2}	// Overcounts by two
 
 			// place reduce job into buffer
 			server.reduceList.PushBack(mrFile)
+			file.Close()
 			server.reduceQueueNotEmpty <- true
 
 		case mrlib.MsgREDUCEANSWER:

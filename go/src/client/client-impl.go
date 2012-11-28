@@ -1,6 +1,9 @@
 package client
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 type TestClient struct {}
 
@@ -18,5 +21,14 @@ func (c *TestClient) Map(chunk string) string {
 }
 
 func (c *TestClient) Reduce(keyValues map[string][]string) string {
-	return "REDUCED"
+	answer := ""
+	for k, v := range keyValues {
+		count := 0
+		for i := 0; i < len(v); i++ {
+			num, _ := strconv.Atoi(v[i])
+			count += num
+		}
+		answer += Pack(k, strconv.Itoa(count))
+	}
+	return answer
 }

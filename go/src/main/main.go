@@ -7,6 +7,7 @@ import (
 	"strings"
 	"strconv"
 	"../client"
+	"log"
 )
 
 func main() {
@@ -19,7 +20,7 @@ func main() {
 	switch os.Args[1] {
 	case "map":
 		file, err := os.Open(os.Args[2])
-		if err != nil { /* do something */ }
+		if err != nil { log.Fatal(err) }
 		fileBuf := bufio.NewReader(file)
 	
 		startLine, _ := strconv.Atoi(os.Args[3])
@@ -39,10 +40,11 @@ func main() {
 		data = strings.TrimSpace(data)
 		fmt.Println(c.Map(data))
 	case "reduce":
+		preMap := make(map[string]string)
 		keyValues := make(map[string][]string)
 
 		file, err := os.Open(os.Args[2])
-		if err != nil { /* do something */ }
+		if err != nil { log.Fatal(err) }
 		fileBuf := bufio.NewReader(file)
 	
 		startLine, _ := strconv.Atoi(os.Args[3])
@@ -55,9 +57,18 @@ func main() {
 		// determine the length of the file
 		for startLine != endLine {
 			line, _ := fileBuf.ReadString('\n')
-			keyVal := strings.Split(line, ",")
-			keyValues[keyVal[0]] = strings.Split(keyVal[1], " ")
+			keyVal := client.Unpack(line)
+			_, ok := preMap[keyVal[0]]
+			if ok {
+				preMap[keyVal[0]] += " " + keyVal[1]
+			} else {
+				preMap[keyVal[0]] = keyVal[1]
+			}
 			startLine++
+		}
+
+		for i, v := range preMap {
+			keyValues[i] = strings.Split(v, " ")
 		}
 
 		fmt.Println(c.Reduce(keyValues))

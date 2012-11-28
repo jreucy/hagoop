@@ -50,9 +50,9 @@ func Write(conn *net.TCPConn, msg interface{}) {
 func Read(conn *net.TCPConn, varPointer interface{}) {
 	byteMsg := make([]byte, MaxMESSAGESIZE)
 	n, err := conn.Read(byteMsg[0:])
-	if err != nil { log.Fatal(err) }
+	if err != nil { log.Fatal("Read error:", err) }
 	err = json.Unmarshal(byteMsg[:n], varPointer)
-	if err != nil { log.Fatal(err) }
+	if err != nil { log.Fatal("Read error:", err) }
 }
 
 

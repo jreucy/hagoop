@@ -22,7 +22,10 @@ type mrServer struct {
 	requestConn *net.TCPConn      // single request client
 	workerConn *net.TCPConn       // single worker client
 	mapList *list.List
+	reduceList *list.List
 	binaryFileName string
+	mapAnswerFile string 		  // Single map output file
+	answerFileName string 		  // Single output file
 	mapQueueNotEmpty chan bool    // placeholder, change to something better later
 	reduceQueueNotEmpty chan bool // look above
 	finishedAllMaps chan bool
@@ -59,7 +62,9 @@ func newServer(serverListener *net.TCPListener) *mrServer {
 	server.connListener = serverListener
 	server.requestConn = nil
 	server.workerConn = nil
+	server.mapAnswerFile = "tmp.txt"
 	server.mapList = list.New()
+	server.reduceList = list.New()
 	server.mapQueueNotEmpty = make(chan bool, 0)
 	server.reduceQueueNotEmpty = make(chan bool, 0)
 	server.finishedAllMaps = make(chan bool, 0)
@@ -106,19 +111,26 @@ func (server *mrServer) eventHandler() {
 				// TODO : re-insert remaining file to front of list
 			case <-server.reduceQueueNotEmpty:
 				// send reduce request to next available worker
-				reduceFile := ""
+				server.reduceList.Remove(server.reduceList.Front())
+				reduceFile := server.mapAnswerFile
 				binaryFile := server.binaryFileName
 				startLine := 0
 				endLine := 0
 				reduceRequest := mrlib.ServerRequestPacket { mrlib.MsgREDUCEREQUEST, reduceFile, binaryFile, startLine, endLine }
 				mrlib.Write(server.workerConn, reduceRequest)
-			case <-server.saveMapToFile:
-				// save map answer to file
-			case <-server.saveReduceToFile:
+			case answer := <-server.saveMapToFile:
+				file, err := os.Create(server.mapAnswerFile)
+				if err != nil { log.Fatal(err) }
+				file.WriteString(answer)
+			case answer := <-server.saveReduceToFile:
+				file, err := os.Create(server.answerFileName)
+				if err != nil { log.Fatal(err) }
+				file.WriteString(answer)
 				// write reduce answer to specified file
 			case <-server.finishedAllMaps:
 				// put request jobs in request queue 
 			case <-server.finishedAllReduces:
+				return
 				// send mapreduce answer to request client
 		}
 	}
@@ -135,8 +147,17 @@ func (server *mrServer) workerHandler() {
 		switch (answer.MsgType) {
 		case mrlib.MsgMAPANSWER:
 			server.saveMapToFile <- answer.Answer
+
+			mrFile := mrlib.MrFile{server.mapAnswerFile, 0, 0}
+
+			// place reduce job into buffer
+			server.reduceList.PushBack(mrFile)
+			server.reduceQueueNotEmpty <- true
+
 		case mrlib.MsgREDUCEANSWER:
 			server.saveReduceToFile <- answer.Answer
+
+			server.finishedAllReduces <- true
 		}
 	}
 
@@ -152,6 +173,7 @@ func (server *mrServer) requestHandler() {
 	mrlib.Read(server.requestConn, &request)	
 
 	server.binaryFileName = request.BinaryFile
+	server.answerFileName = request.AnswerFileName
 
 	// parse directory and save file name, starting/ending line numbers
 	// currently "directory" represents a single file

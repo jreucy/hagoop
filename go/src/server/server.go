@@ -166,7 +166,7 @@ func (server *mrServer) workerHandler() {
 				_ , err = fileBuf.ReadString('\n')
 				endLine++
 			}
-			mrFile := mrlib.MrFile{server.mapAnswerFile, startLine, endLine-2}	// Overcounts by two
+			mrFile := mrlib.MrFile{server.mapAnswerFile, startLine, endLine-1}	// Overcounts by one
 
 			// place reduce job into buffer
 			server.reduceList.PushBack(mrFile)

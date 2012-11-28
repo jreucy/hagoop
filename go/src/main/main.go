@@ -38,7 +38,7 @@ func main() {
 		}
 		data = strings.Replace(data, "\n", " ", -1)
 		data = strings.TrimSpace(data)
-		fmt.Println(c.Map(data))
+		fmt.Print(c.Map(data))
 	case "reduce":
 		preMap := make(map[string]string)
 		keyValues := make(map[string][]string)
@@ -71,6 +71,6 @@ func main() {
 			keyValues[i] = strings.Split(v, " ")
 		}
 
-		fmt.Println(c.Reduce(keyValues))
+		fmt.Print(c.Reduce(keyValues))
 	}
 }

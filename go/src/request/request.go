@@ -4,6 +4,7 @@ import (
 	"mrlib"
 	"net"
 	"os"
+	"log"
 	//"fmt"
 )
 
@@ -30,6 +31,11 @@ func main() {
 	// identify as request client
 	identifyPacket := mrlib.IdentifyPacket{mrlib.MsgREQUESTCLIENT}
 	mrlib.Write(conn, identifyPacket)
+
+	var acceptPacket mrlib.IdentifyPacket
+	mrlib.Read(conn, &acceptPacket)
+
+	if acceptPacket.MsgType != mrlib.MsgSUCCESS { log.Fatal("Request not accepted") }
 
 	// create mapreduce request and write to server
 	mrRequest := mrlib.MrRequestPacket{fileDirectory, answerFileName, binaryName}

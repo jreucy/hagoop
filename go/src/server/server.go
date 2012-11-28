@@ -185,6 +185,8 @@ func (server *mrServer) workerHandler() {
 
 // reads in requests from request clients
 func (server *mrServer) requestHandler() {
+	accept := mrlib.IdentifyPacket{mrlib.MsgSUCCESS}
+	mrlib.Write(server.requestConn, accept)
 	// put in for loop later for multiple request clients
 
 	// read in request packet

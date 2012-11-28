@@ -8,9 +8,15 @@ type Client interface {
 }
 
 func Emit(vals ...interface{}) {
-	fmt.Print(vals[0])
-	for i := 1; i < len(vals); i++ {
-		fmt.Print(", " + vals[i].(string))
+	for i := 0; i < len(vals); i++ {
+		switch i {
+		case 0:
+			fmt.Print(vals[i].(string))
+		case 1:
+			fmt.Print(", " + vals[i].(string))
+		default:
+			fmt.Print(" " + vals[i].(string))
+		}
 	}
 	fmt.Print("\n")
 }

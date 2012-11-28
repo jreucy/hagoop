@@ -1,19 +1,22 @@
 package client
 
-import "fmt"
+import "strings"
 
-type TestClient struct {
-	x, y int
-}
+type TestClient struct {}
 
 func New() *TestClient {
-	return &TestClient{1,2}
+	return &TestClient{}
 }
 
-func (c *TestClient) Map() {
-	fmt.Println("MAPPED")
+func (c *TestClient) Map(chunk string) string {
+	res := ""
+	array := strings.Split(chunk, " ")
+	for i := 0; i < len(array); i++ {
+		res += Pack(array[i], "1")
+	}
+	return res
 }
 
-func (c *TestClient) Reduce() {
-	fmt.Println("REDUCED")
+func (c *TestClient) Reduce(keyValues map[string][]string) string {
+	return "REDUCED"
 }

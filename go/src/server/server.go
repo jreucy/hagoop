@@ -130,6 +130,8 @@ func (server *mrServer) eventHandler() {
 			case <-server.finishedAllMaps:
 				// put request jobs in request queue 
 			case <-server.finishedAllReduces:
+				os.Remove(server.mapAnswerFile)
+				// Remove mapAnswer file now that reduces are done
 				return
 				// send mapreduce answer to request client
 		}

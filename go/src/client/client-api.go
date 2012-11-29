@@ -7,15 +7,14 @@ type Client interface {
 	Reduce(keyValues map[string][]string)
 }
 
-func Emit(vals ...interface{}) {
+func Emit(key string, vals ...string) {
+	fmt.Print(key)
 	for i := 0; i < len(vals); i++ {
 		switch i {
 		case 0:
-			fmt.Print(vals[i].(string))
-		case 1:
-			fmt.Print(", " + vals[i].(string))
+			fmt.Print(", " + vals[i])
 		default:
-			fmt.Print(" " + vals[i].(string))
+			fmt.Print(" " + vals[i])
 		}
 	}
 	fmt.Print("\n")

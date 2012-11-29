@@ -5,13 +5,13 @@ import (
 	"strings"
 )
 
-type TestClient struct {}
+type WordCount struct {}
 
-func New() *TestClient {
-	return &TestClient{}
+func New() *WordCount {
+	return &WordCount{}
 }
 
-func (c *TestClient) Map(line string) {
+func (c *WordCount) Map(line string) {
 	if line == "" { return }
 	array := strings.Split(line, " ")
 	for i := 0; i < len(array); i++ {
@@ -19,7 +19,7 @@ func (c *TestClient) Map(line string) {
 	}
 }
 
-func (c *TestClient) Reduce(keyValues map[string][]string) {
+func (c *WordCount) Reduce(keyValues map[string][]string) {
 	for k, v := range keyValues {
 		count := 0
 		for i := 0; i < len(v); i++ {

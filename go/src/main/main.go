@@ -33,15 +33,11 @@ func main() {
 			fileBuf.ReadString('\n')
 		}
 
-		data := ""
 		for startLine != endLine {
 			line, _ := fileBuf.ReadString('\n')
-			data += line
+			c.Map(strings.TrimSpace(line))
 			startLine++
 		}
-		data = strings.Replace(data, "\n", " ", -1)
-		data = strings.TrimSpace(data)
-		c.Map(data)
 	case "reduce":
 		preMap := make(map[string]string)
 		keyValues := make(map[string][]string)

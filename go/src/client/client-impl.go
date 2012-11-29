@@ -11,8 +11,9 @@ func New() *TestClient {
 	return &TestClient{}
 }
 
-func (c *TestClient) Map(chunk string) {
-	array := strings.Split(chunk, " ")
+func (c *TestClient) Map(line string) {
+	if line == "" { return }
+	array := strings.Split(line, " ")
 	for i := 0; i < len(array); i++ {
 		Emit(array[i], "1")
 	}

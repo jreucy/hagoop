@@ -3,7 +3,7 @@ package client
 import "fmt"
 
 type Client interface {
-	Map(chunk string)
+	Map(line string)
 	Reduce(keyValues map[string][]string)
 }
 

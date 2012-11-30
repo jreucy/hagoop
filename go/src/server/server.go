@@ -101,22 +101,19 @@ func (server *mrServer) eventHandler() {
 		select {
 			case <-server.mapQueueNotEmpty:
 				// send map request to next available worker
-				mrFile := server.mapList.Remove(server.mapList.Front()).(mrlib.MrFile)
-				mapFile := mrFile.FileName
+				mrJob := server.mapList.Remove(server.mapList.Front()).(mrlib.MrJob)
+				mapFile := mrJob.FileName
 				binaryFile := server.binaryFileName
-				startLine := mrFile.StartLine
-				endLine := mrFile.EndLine
-				mapRequest := mrlib.ServerRequestPacket{ mrlib.MsgMAPREQUEST, mapFile, binaryFile, startLine, endLine }
+				ranges := mrJob.Ranges
+				mapRequest := mrlib.ServerRequestPacket{ mrlib.MsgMAPREQUEST, mapFile, binaryFile, ranges }
 				mrlib.Write(server.workerConn, mapRequest)
-				// TODO : re-insert remaining file to front of list
 			case <-server.reduceQueueNotEmpty:
 				// send reduce request to next available worker
-				mrFile := server.reduceList.Remove(server.reduceList.Front()).(mrlib.MrFile)
+				mrJob := server.reduceList.Remove(server.reduceList.Front()).(mrlib.MrJob)
 				reduceFile := server.mapAnswerFile
 				binaryFile := server.binaryFileName
-				startLine := mrFile.StartLine
-				endLine := mrFile.EndLine
-				reduceRequest := mrlib.ServerRequestPacket { mrlib.MsgREDUCEREQUEST, reduceFile, binaryFile, startLine, endLine }
+				ranges := mrJob.Ranges
+				reduceRequest := mrlib.ServerRequestPacket { mrlib.MsgREDUCEREQUEST, reduceFile, binaryFile, ranges }
 				mrlib.Write(server.workerConn, reduceRequest)
 			case answer := <-server.saveMapToFile:
 				file, err := os.Create(server.mapAnswerFile)
@@ -168,7 +165,9 @@ func (server *mrServer) workerHandler() {
 				_ , err = fileBuf.ReadString('\n')
 				endLine++
 			}
-			mrFile := mrlib.MrFile{server.mapAnswerFile, startLine, endLine-1}	// Overcounts by one
+			chunk := mrlib.MrChunk{startLine, endLine - 1} // Overcounts by 1
+			ranges := []mrlib.MrChunk{chunk}
+			mrFile := mrlib.MrJob{server.mapAnswerFile, ranges}	
 
 			// place reduce job into buffer
 			server.reduceList.PushBack(mrFile)
@@ -213,11 +212,15 @@ func (server *mrServer) requestHandler() {
 		_ , err = fileBuf.ReadString('\n')
 		endLine++
 	}
-	mrFile := mrlib.MrFile{request.Directory, startLine, endLine}
 
-	// place map job into buffer
-	server.mapList.PushBack(mrFile)
+	for i := startLine; i < endLine; i += mrlib.MinJOBSIZE {
+		jobStart := i
+		jobEnd := mrlib.Min(endLine, i + mrlib.MinJOBSIZE)
+		chunk := mrlib.MrChunk{jobStart, jobEnd}
+		ranges := []mrlib.MrChunk{chunk}
+		mrJob := mrlib.MrJob{request.Directory, ranges}
+		server.mapList.PushBack(mrJob)
+	}
 	server.mapQueueNotEmpty <- true
-
 	return
 }

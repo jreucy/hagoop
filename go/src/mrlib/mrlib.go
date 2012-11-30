@@ -26,16 +26,19 @@ type ServerRequestPacket struct {
 	MsgType int
 	FileName string
 	BinaryFile string
-	StartLine int
-	EndLine int
+	Ranges []MrChunk
 }
 
 type MrAnswerPacket struct {
 	MsgType int
 }
 
-type MrFile struct {
+type MrJob struct {
 	FileName string
+	Ranges []MrChunk
+}
+
+type MrChunk struct {
 	StartLine int
 	EndLine int
 }
@@ -53,6 +56,13 @@ func Read(conn *net.TCPConn, varPointer interface{}) {
 	if err != nil { log.Fatal("Read error: ", err) }
 	err = json.Unmarshal(byteMsg[:n], varPointer)
 	if err != nil { log.Fatal("Read error: ", err) }
+}
+
+func Min(a int, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 

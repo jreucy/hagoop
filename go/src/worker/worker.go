@@ -39,7 +39,11 @@ func main() {
 		answerPacket := mrlib.WorkerAnswerPacket{}
 		switch (request.MsgType) {
 		case mrlib.MsgMAPREQUEST:
-			cmd := exec.Command(request.BinaryFile, mrlib.MAP,  request.FileName, strconv.Itoa(request.StartLine), strconv.Itoa(request.EndLine))
+			ranges := request.Ranges
+			firstRange := ranges[0] // assumes single chunk, put in for loop later
+			startLine := firstRange.StartLine
+			endLine := firstRange.EndLine
+			cmd := exec.Command(request.BinaryFile, mrlib.MAP,  request.FileName, strconv.Itoa(startLine), strconv.Itoa(endLine))
 			var out bytes.Buffer 
 			cmd.Stdout = &out 
 			err := cmd.Start()	
@@ -53,7 +57,11 @@ func main() {
 			answerPacket.Answer = out.String() // TODO : change
 
 		case mrlib.MsgREDUCEREQUEST:
-			cmd := exec.Command(request.BinaryFile, mrlib.REDUCE,  request.FileName, strconv.Itoa(request.StartLine), strconv.Itoa(request.EndLine))
+			ranges := request.Ranges			
+			firstRange := ranges[0] // assumes single chunk, put in for loop later
+			startLine := firstRange.StartLine
+			endLine := firstRange.EndLine
+			cmd := exec.Command(request.BinaryFile, mrlib.REDUCE,  request.FileName, strconv.Itoa(startLine), strconv.Itoa(endLine))
 			var out bytes.Buffer 
 			cmd.Stdout = &out 
 			err := cmd.Start() 

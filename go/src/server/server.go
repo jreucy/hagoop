@@ -107,6 +107,7 @@ func (server *mrServer) eventHandler() {
 				ranges := mrJob.Ranges
 				mapRequest := mrlib.ServerRequestPacket{ mrlib.MsgMAPREQUEST, mapFile, binaryFile, ranges }
 				mrlib.Write(server.workerConn, mapRequest)
+
 			case <-server.reduceQueueNotEmpty:
 				// send reduce request to next available worker
 				mrJob := server.reduceList.Remove(server.reduceList.Front()).(mrlib.MrJob)
@@ -212,7 +213,7 @@ func (server *mrServer) requestHandler() {
 		_ , err = fileBuf.ReadString('\n')
 		endLine++
 	}
-
+	/* for when we actually split the jobs
 	for i := startLine; i < endLine; i += mrlib.MinJOBSIZE {
 		jobStart := i
 		jobEnd := mrlib.Min(endLine, i + mrlib.MinJOBSIZE)
@@ -221,6 +222,12 @@ func (server *mrServer) requestHandler() {
 		mrJob := mrlib.MrJob{request.Directory, ranges}
 		server.mapList.PushBack(mrJob)
 	}
+	*/
+	chunk := mrlib.MrChunk{startLine, endLine}
+	ranges := []mrlib.MrChunk{chunk}
+	mrJob := mrlib.MrJob{request.Directory, ranges}
+	server.mapList.PushBack(mrJob)
+
 	server.mapQueueNotEmpty <- true
 	return
 }

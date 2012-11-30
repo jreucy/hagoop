@@ -8,7 +8,8 @@ import (
 	"net"
 	"os"
 	"log"
-	//"fmt"
+	"fmt"
+	"time"
 	//"io"
 )
 
@@ -55,13 +56,13 @@ func main() {
 	laddr := ":" + port
 	serverAddr, err := net.ResolveTCPAddr(mrlib.TCP, laddr)
 	if err != nil { log.Fatal(err) }
-	serverListener, err := net.ListenTCP(mrlib.TCP, serverAddr) // maybe change nil to something
+	serverListener, err := net.ListenTCP(mrlib.TCP, serverAddr)
 	if err != nil { log.Fatal(err) }
 
 	server := newServer(serverListener)
 	go server.connectionHandler()
-	go server.eventHandler()
 	go server.MapQueueHandler()
+	server.eventHandler() // convert to go routine
 }
 
 func newServer(serverListener *net.TCPListener) *mrServer {
@@ -108,6 +109,8 @@ func (server *mrServer) connectionHandler() {
 func (server *mrServer) eventHandler() {
 	for {
 		select {
+			case <-server.changeWorkerStatus:
+				server.worker.status = WorkerFREE
 			case <-server.mapQueueNotEmpty:
 				// send map request to next available worker
 				mrJob := server.mapList.Remove(server.mapList.Front()).(mrlib.MrJob)
@@ -144,10 +147,7 @@ func (server *mrServer) eventHandler() {
 				// Remove mapAnswer file now that reduces are done
 				done := mrlib.MrAnswerPacket{mrlib.MsgSUCCESS}
 				mrlib.Write(server.requestConn, done)
-				return
-				// send mapreduce answer to request client
-			case <-server.changeWorkerStatus:
-				server.worker.status = WorkerFREE
+				return // send mapreduce answer to request client
 		}
 	}
 }
@@ -198,6 +198,9 @@ func (server *mrServer) workerHandler() {
 
 // reads in requests from request clients
 func (server *mrServer) requestHandler() {
+
+	fmt.Println("got request message")
+
 	accept := mrlib.MrAnswerPacket{mrlib.MsgSUCCESS}
 	mrlib.Write(server.requestConn, accept)
 	// put in for loop later for multiple request clients
@@ -241,13 +244,15 @@ func (server *mrServer) requestHandler() {
 	return
 }
 
+/* definitely fix */
 func (server *mrServer) MapQueueHandler() {
 	for {
-		if server.mapList.Len() >= 0 {
+		if server.mapList.Len() > 0 {
 			// assuming single worker
 			if server.worker.status == WorkerFREE {
 				server.mapQueueNotEmpty <- true
 			}
-		}
+		} 			
+		time.Sleep(500 * time.Millisecond)
 	}
 }

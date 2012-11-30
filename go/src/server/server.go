@@ -13,14 +13,19 @@ import (
 )
 
 const (
-	//MIN_JOB_SIZE = 1000  // change
-	//MAX_JOB_SIZE = 10000 // change
+	WorkerFREE = iota
+	WorkerBUSY
 )
+
+type Worker struct {
+	status int
+	conn *net.TCPConn
+}
 
 type mrServer struct {
 	connListener *net.TCPListener
-	requestConn *net.TCPConn      // single request client
-	workerConn *net.TCPConn       // single worker client
+	requestConn *net.TCPConn      // single request client  
+	worker Worker 				  // single worker client
 	mapList *list.List
 	reduceList *list.List
 	binaryFileName string
@@ -32,6 +37,7 @@ type mrServer struct {
 	finishedAllReduces chan bool
 	saveMapToFile chan string
 	saveReduceToFile chan string
+	changeWorkerStatus chan bool
 }
 
 func main() {
@@ -54,14 +60,15 @@ func main() {
 
 	server := newServer(serverListener)
 	go server.connectionHandler()
-	server.eventHandler()
+	go server.eventHandler()
+	go server.MapQueueHandler()
 }
 
 func newServer(serverListener *net.TCPListener) *mrServer {
 	server := &mrServer{}
 	server.connListener = serverListener
 	server.requestConn = nil
-	server.workerConn = nil
+	server.worker = Worker{}
 	server.mapAnswerFile = "tmp.txt"
 	server.mapList = list.New()
 	server.reduceList = list.New()
@@ -71,6 +78,7 @@ func newServer(serverListener *net.TCPListener) *mrServer {
 	server.finishedAllReduces = make(chan bool, 0)
 	server.saveMapToFile = make(chan string, 0)
 	server.saveReduceToFile = make(chan string, 0)
+	server.changeWorkerStatus = make(chan bool, 0)
 	return server
 }
 
@@ -88,7 +96,8 @@ func (server *mrServer) connectionHandler() {
 			server.requestConn = conn
 			go server.requestHandler()
 		case mrlib.MsgWORKERCLIENT:
-			server.workerConn = conn
+			server.worker.status = WorkerFREE
+			server.worker.conn = conn
 			go server.workerHandler()
 		// default:
 			// do something, break, etc.
@@ -106,8 +115,8 @@ func (server *mrServer) eventHandler() {
 				binaryFile := server.binaryFileName
 				ranges := mrJob.Ranges
 				mapRequest := mrlib.ServerRequestPacket{ mrlib.MsgMAPREQUEST, mapFile, binaryFile, ranges }
-				mrlib.Write(server.workerConn, mapRequest)
-
+				mrlib.Write(server.worker.conn, mapRequest)
+				server.worker.status = WorkerBUSY
 			case <-server.reduceQueueNotEmpty:
 				// send reduce request to next available worker
 				mrJob := server.reduceList.Remove(server.reduceList.Front()).(mrlib.MrJob)
@@ -115,7 +124,7 @@ func (server *mrServer) eventHandler() {
 				binaryFile := server.binaryFileName
 				ranges := mrJob.Ranges
 				reduceRequest := mrlib.ServerRequestPacket { mrlib.MsgREDUCEREQUEST, reduceFile, binaryFile, ranges }
-				mrlib.Write(server.workerConn, reduceRequest)
+				mrlib.Write(server.worker.conn, reduceRequest)
 			case answer := <-server.saveMapToFile:
 				file, err := os.Create(server.mapAnswerFile)
 				if err != nil { log.Fatal(err) }
@@ -137,6 +146,8 @@ func (server *mrServer) eventHandler() {
 				mrlib.Write(server.requestConn, done)
 				return
 				// send mapreduce answer to request client
+			case <-server.changeWorkerStatus:
+				server.worker.status = WorkerFREE
 		}
 	}
 }
@@ -147,7 +158,7 @@ func (server *mrServer) workerHandler() {
 	var answer mrlib.WorkerAnswerPacket
 
 	for {
-		mrlib.Read(server.workerConn, &answer)
+		mrlib.Read(server.worker.conn, &answer)
 		switch (answer.MsgType) {
 		case mrlib.MsgMAPANSWER:
 			server.saveMapToFile <- answer.Answer
@@ -227,7 +238,16 @@ func (server *mrServer) requestHandler() {
 	ranges := []mrlib.MrChunk{chunk}
 	mrJob := mrlib.MrJob{request.Directory, ranges}
 	server.mapList.PushBack(mrJob)
-
-	server.mapQueueNotEmpty <- true
 	return
+}
+
+func (server *mrServer) MapQueueHandler() {
+	for {
+		if server.mapList.Len() >= 0 {
+			// assuming single worker
+			if server.worker.status == WorkerFREE {
+				server.mapQueueNotEmpty <- true
+			}
+		}
+	}
 }

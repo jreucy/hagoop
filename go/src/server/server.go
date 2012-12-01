@@ -11,6 +11,7 @@ import (
 	"log"
 	"bytes"
 	"math"
+	"time"
 )
 
 type Request struct {
@@ -28,6 +29,7 @@ type Request struct {
 type Worker struct {
 	conn *net.TCPConn
 	job *mrlib.ServerRequestPacket
+	joinTime time.Time
 }
 
 type mrServer struct {
@@ -91,7 +93,7 @@ func (server *mrServer) connectionHandler() {
 			server.requests[id] = request
 			go server.requestHandler(id, conn)
 		case mrlib.MsgWORKERCLIENT:
-			worker := &Worker{conn, nil}
+			worker := &Worker{conn, nil, time.Now()}
 			server.workers[id] = worker
 			server.workerReady <- id
 			go server.workerHandler(id, conn)

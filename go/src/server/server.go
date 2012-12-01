@@ -9,7 +9,6 @@ import (
 	"os"
 	"log"
 	"fmt"
-	"time"
 	//"io"
 )
 
@@ -61,7 +60,6 @@ func main() {
 
 	server := newServer(serverListener)
 	go server.connectionHandler()
-	go server.MapQueueHandler()
 	server.eventHandler() // convert to go routine
 }
 
@@ -177,7 +175,7 @@ func (server *mrServer) workerHandler() {
 				_ , err = fileBuf.ReadString('\n')
 				endLine++
 			}
-			chunk := mrlib.MrChunk{startLine, endLine - 1} // Overcounts by 1
+			chunk := mrlib.MrChunk{startLine, endLine - 1}
 			ranges := []mrlib.MrChunk{chunk}
 			mrFile := mrlib.MrJob{server.mapAnswerFile, ranges}	
 
@@ -191,6 +189,7 @@ func (server *mrServer) workerHandler() {
 
 			server.finishedAllReduces <- true
 		}
+		server.scheduleJobs()
 	}
 
 	return
@@ -241,18 +240,16 @@ func (server *mrServer) requestHandler() {
 	ranges := []mrlib.MrChunk{chunk}
 	mrJob := mrlib.MrJob{request.Directory, ranges}
 	server.mapList.PushBack(mrJob)
+	server.scheduleJobs()
 	return
 }
 
 /* definitely fix */
-func (server *mrServer) MapQueueHandler() {
-	for {
-		if server.mapList.Len() > 0 {
-			// assuming single worker
-			if server.worker.status == WorkerFREE {
-				server.mapQueueNotEmpty <- true
-			}
-		} 			
-		time.Sleep(500 * time.Millisecond)
-	}
+func (server *mrServer) scheduleJobs() {
+	if server.mapList.Len() > 0 {
+		// assuming single worker
+		if server.worker.status == WorkerFREE {
+			server.mapQueueNotEmpty <- true
+		}
+	} 			
 }

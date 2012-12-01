@@ -77,7 +77,7 @@ const (
 	MAP = "map"
 	REDUCE = "reduce"
 	MaxMESSAGESIZE = 10000 // change later
-	MinJOBSIZE = 1000  // change
+	MinJOBSIZE = 100  // change
 	MaxJOBSIZE = 10000 // change
 	MsgREQUESTCLIENT = iota
 	MsgWORKERCLIENT

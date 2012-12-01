@@ -11,7 +11,7 @@ import (
 	"log"
 	"fmt"
 	"bytes"
-	//"io"
+	"math"
 )
 
 type Request struct {
@@ -118,7 +118,6 @@ func (server *mrServer) eventHandler() {
 			if answer.MsgType == mrlib.MsgMAPANSWER {
 				f, err := os.OpenFile(server.requests[answer.RequestId].mapFile, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0666)
 				f.WriteString(answer.Answer)
-				log.Println(answer.Answer)
 				f.Close()
 				server.requests[answer.RequestId].mapDone += size
 					// If all maps done, add requests to queue, sort file
@@ -194,63 +193,41 @@ func (server *mrServer) addJobs(id uint) {
 	request := server.requests[id]
 	// Have not added map jobs for this request yet
 	if request.mapJobs == uint(0) {
-		job := mrlib.ServerRequestPacket{}
-		job.MsgType = mrlib.MsgMAPREQUEST
-		job.FileName = request.input
-		job.BinaryFile = request.binary
 
-		file, err := os.Open(request.input) // TODO : change from file to dir
-		if err != nil { }
-		fileBuf := bufio.NewReader(file)
-		
-		startLine := 0
-		endLine := 0
+		lines := countLines(request.input)
+		chunks := splitJob(lines, mrlib.MsgMAPREQUEST)
+		for i := 0; i < len(chunks); i++ {
+			job := mrlib.ServerRequestPacket{}
+			job.MsgType = mrlib.MsgMAPREQUEST
+			job.FileName = request.input
+			job.BinaryFile = request.binary
+			job.Ranges = []mrlib.MrChunk{chunks[i]}
+			job.RequestId = id
+			job.JobSize = uint(1)
 
-		// determine the length of the file
-		err = nil
-		for err == nil {
-			_ , err = fileBuf.ReadString('\n')
-			endLine++
+			server.queue.PushBack(job)
 		}
 
-		chunk := mrlib.MrChunk{startLine, endLine} // do calcultions
-		job.Ranges = []mrlib.MrChunk{chunk}
-		job.RequestId = id
-		job.JobSize = uint(1)
-
-		server.queue.PushBack(job)
-
-		request.mapJobs = uint(1)
+		request.mapJobs = uint(len(chunks))
 
 	// Have not added reduce jobs for this request yet
 	} else if request.reduceJobs == uint(0) {
-		job := mrlib.ServerRequestPacket{}
-		job.MsgType = mrlib.MsgREDUCEREQUEST
-		job.FileName = request.mapFile
-		job.BinaryFile = request.binary
-
-		file, err := os.Open(request.mapFile) // TODO : change from file to dir
-		if err != nil { }
-		fileBuf := bufio.NewReader(file)
 		
-		startLine := 0
-		endLine := 0
+		lines := countLines(request.mapFile)
+		chunks := splitJob(lines, mrlib.MsgREDUCEREQUEST)
+		for i := 0; i < len(chunks); i++ {
+			job := mrlib.ServerRequestPacket{}
+			job.MsgType = mrlib.MsgREDUCEREQUEST
+			job.FileName = request.mapFile
+			job.BinaryFile = request.binary
+			job.Ranges = []mrlib.MrChunk{chunks[i]}
+			job.RequestId = id
+			job.JobSize = uint(1)
 
-		// determine the length of the file
-		err = nil
-		for err == nil {
-			_ , err = fileBuf.ReadString('\n')
-			endLine++
+			server.queue.PushBack(job)
 		}
 
-		chunk := mrlib.MrChunk{startLine, endLine-1} // do calcultions
-		job.Ranges = []mrlib.MrChunk{chunk}
-		job.RequestId = id
-		job.JobSize = uint(1)
-
-		server.queue.PushBack(job)
-
-		request.reduceJobs = uint(1)
+		request.reduceJobs = uint(len(chunks))
 	}
 }
 
@@ -264,4 +241,46 @@ func (server *mrServer) scheduleJobs() {
 			mrlib.Write(w.conn, job)
 		}
 	}		
+}
+
+func splitJob(numLines int, msgtype int) []mrlib.MrChunk {
+	// split based on type. For reduce jobs, same keys have to be on same worker
+	switch msgtype {
+	case mrlib.MsgMAPREQUEST:
+		numJobs := int(math.Ceil(float64(numLines)/float64(mrlib.MinJOBSIZE)))
+		chunks := make([]mrlib.MrChunk, numJobs)
+		start := 0
+		end := mrlib.MinJOBSIZE
+		for i := 0; i < numJobs; i++ {
+			if end > numLines {
+				end = numLines
+			}
+			chunks[i] = mrlib.MrChunk{start, end}
+			start = end
+			end += mrlib.MinJOBSIZE
+		}
+		return chunks
+	// Right now, send entire reduce job to one worker. Split based on keys later
+	case mrlib.MsgREDUCEREQUEST:
+		chunks := make([]mrlib.MrChunk, 1)
+		chunks[0] = mrlib.MrChunk{0, numLines-1}
+		return chunks
+	}
+	return nil
+}
+
+func countLines(fileName string) int {
+	file, err := os.Open(fileName)
+	if err != nil { }
+	fileBuf := bufio.NewReader(file)
+	
+	lines := 0
+
+	// determine the length of the file
+	err = nil
+	for err == nil {
+		_ , err = fileBuf.ReadString('\n')
+		lines++
+	}
+	return lines
 }

@@ -229,7 +229,7 @@ func (server *mrServer) addJobs(id uint) {
 		job.FileName = request.mapFile
 		job.BinaryFile = request.binary
 
-		file, err := os.Open(request.mapFile) // TODO : change from directory to file
+		file, err := os.Open(request.mapFile) // TODO : change from file to dir
 		if err != nil { }
 		fileBuf := bufio.NewReader(file)
 		
@@ -242,8 +242,7 @@ func (server *mrServer) addJobs(id uint) {
 			_ , err = fileBuf.ReadString('\n')
 			endLine++
 		}
-		// add request jobs to queue
-		// update job size
+
 		chunk := mrlib.MrChunk{startLine, endLine-1} // do calcultions
 		job.Ranges = []mrlib.MrChunk{chunk}
 		job.RequestId = id

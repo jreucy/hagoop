@@ -34,8 +34,8 @@ func main() {
 	for {
 		// Read in Map or Reduce requests from server
 		var request mrlib.ServerRequestPacket
-		mrlib.Read(conn, &request)
-		log.Println("Worker: ", request)
+		err = mrlib.Read(conn, &request)
+		if err != nil { log.Fatal("Worker: ", err)}
 		answerPacket := mrlib.WorkerAnswerPacket{}
 		switch (request.MsgType) {
 		case mrlib.MsgMAPREQUEST:
@@ -53,6 +53,8 @@ func main() {
 			err = cmd.Wait()
 
 			// send back results
+			answerPacket.JobSize = request.JobSize
+			answerPacket.RequestId = request.RequestId
 			answerPacket.MsgType = mrlib.MsgMAPANSWER
 			answerPacket.Answer = out.String() // TODO : change
 
@@ -71,6 +73,8 @@ func main() {
 			err = cmd.Wait()
 
 			// send back results
+			answerPacket.JobSize = request.JobSize
+			answerPacket.RequestId = request.RequestId
 			answerPacket.MsgType = mrlib.MsgREDUCEANSWER
 			answerPacket.Answer = out.String() // TODO : change
 		}

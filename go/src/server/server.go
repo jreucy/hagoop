@@ -7,8 +7,10 @@ import (
 	"bufio"
 	"net"
 	"os"
+	"os/exec"
 	"log"
 	"fmt"
+	"bytes"
 	//"io"
 )
 
@@ -131,6 +133,17 @@ func (server *mrServer) eventHandler() {
 				if err != nil { log.Fatal(err) }
 				file.WriteString(answer)
 				file.Close()
+				cmd := exec.Command("sort", server.mapAnswerFile)
+				var out bytes.Buffer 
+				cmd.Stdout = &out 
+				err = cmd.Start()	
+				if err != nil {
+					log.Fatal("Sorting error: ", err)
+				}
+				err = cmd.Wait()
+				f, err := os.OpenFile(server.mapAnswerFile, os.O_WRONLY, 0666)
+				f.WriteString(out.String())
+				f.Close()
 				server.saveMapToFile <- "done"
 			case answer := <-server.saveReduceToFile:
 				file, err := os.Create(server.answerFileName)

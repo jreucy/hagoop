@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"log"
-	"fmt"
 	"bytes"
 	"math"
 )
@@ -85,7 +84,6 @@ func (server *mrServer) connectionHandler() {
 		if err != nil { log.Fatal(err) }
 		var identifyPacket mrlib.IdentifyPacket
 		mrlib.Read(conn, &identifyPacket)
-		log.Println(identifyPacket.MsgType)
 		switch (identifyPacket.MsgType) {
 		case mrlib.MsgREQUESTCLIENT:
 			request := &Request{}
@@ -105,7 +103,6 @@ func (server *mrServer) connectionHandler() {
 func (server *mrServer) eventHandler() {
 	for {
 		select {
-
 		case id := <-server.requestJoin:
 			server.addJobs(id)
 			server.scheduleJobs()
@@ -154,11 +151,17 @@ func (server *mrServer) eventHandler() {
 // reads in answers from worker clients
 func (server *mrServer) workerHandler(id uint, conn *net.TCPConn) {
 
+	log.Println("Worker joined with id:", id)
+
 	var answer mrlib.WorkerAnswerPacket
 
 	for {
 		err := mrlib.Read(conn, &answer)
-		if err != nil { log.Fatal(err) }
+		if err != nil {
+			// Reassign current job
+			// Remove from worker map
+			return
+		}
 		server.responseChan <- answer
 		server.workerReady <- id
 	}
@@ -169,7 +172,7 @@ func (server *mrServer) workerHandler(id uint, conn *net.TCPConn) {
 // reads in requests from request clients
 func (server *mrServer) requestHandler(id uint, conn *net.TCPConn) {
 
-	fmt.Println("got request message")
+	log.Println("Request received with id:", id)
 
 	accept := mrlib.MrAnswerPacket{mrlib.MsgSUCCESS}
 	mrlib.Write(conn, accept)
@@ -238,7 +241,11 @@ func (server *mrServer) scheduleJobs() {
 		}
 		if w.job == nil {
 			job := server.queue.Remove(server.queue.Front()).(mrlib.ServerRequestPacket)
-			mrlib.Write(w.conn, job)
+			err := mrlib.Write(w.conn, job)
+			if err != nil {
+				// Write didn't work. Add job back into queue
+				server.queue.PushFront(job)
+			}
 		}
 	}		
 }

@@ -110,7 +110,6 @@ func (server *mrServer) eventHandler() {
 		case id := <-server.requestJoin:
 			server.addJobs(id)
 			server.scheduleJobs()
-			// Split job and add to queue
 		case id := <-server.workerReady:
 			server.workers[id].job = nil
 			server.scheduleJobs()
@@ -188,10 +187,18 @@ func (server *mrServer) requestHandler(id uint, conn *net.TCPConn) {
 	log.Println("Request received with id:", id)
 
 	accept := mrlib.MrAnswerPacket{mrlib.MsgSUCCESS}
-	mrlib.Write(conn, accept)
+	err := mrlib.Write(conn, accept)
+	if err != nil {
+		log.Println("Write Error: Request", id, "died")
+		return
+	}
 
 	var packet mrlib.MrRequestPacket
-	mrlib.Read(conn, &packet)
+	err = mrlib.Read(conn, &packet)
+	if err != nil {
+		log.Println("Read Error: Request", id, "died")
+		return
+	}
 
 	request := server.requests[id]
 	request.binary = packet.BinaryFile

@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"math"
 	"time"
-	"fmt"
 )
 
 type Request struct {
@@ -238,7 +237,6 @@ func (server *mrServer) addJobs(id uint) {
 	} else if request.reduceJobs == uint(0) {
 		
 		lines := countLines(request.mapFile)
-		fmt.Println("splitting reduce job")
 		chunks := splitReduceJob(lines, request.mapFile)
 		for i := 0; i < len(chunks); i++ {
 			job := &mrlib.ServerRequestPacket{}
@@ -286,7 +284,7 @@ func splitMapJob(numLines int) []mrlib.MrChunk {
 	numJobs := int(math.Ceil(float64(numLines)/float64(mrlib.MinJOBSIZE)))
 	chunks := make([]mrlib.MrChunk, numJobs)
 	start := 0
-	end := mrlib.MinJOBSIZE
+	end := mrlib.MinJOBSIZE - 1
 	for i := 0; i < numJobs; i++ {
 		if end > numLines {
 			end = numLines

@@ -83,7 +83,7 @@ function startWorkers {
 }
 
 function stopWorkers {
-	N=${#WORKER_PID[@]}
+	N=$1
     for i in `seq 0 $((N-1))`
     do
         kill -9 ${WORKER_PID[$i]}
@@ -92,8 +92,11 @@ function stopWorkers {
 }
 
 function startRequest {
-    ${REQUEST} localhost:${PORT} ${INPUT} ${OUTPUT} ${MAIN} > /dev/null
-    PASS=`cat ${OUTPUT} | grep ${LINES} | wc -l`
+    ${REQUEST} localhost:${PORT} ${INPUT} ${OUTPUT} ${MAIN} > /dev/null &
+}
+
+function testResult {
+	PASS=`cat ${OUTPUT} | grep ${LINES} | wc -l`
     if [ "$PASS" -eq 3 ]
     then
         echo "PASS"
@@ -107,22 +110,46 @@ function startRequest {
 
 function testOneWorkerOneRequest {
 	echo "Testing: 1 worker then 1 request"
-	sleep 1
 	startServer
 	startWorkers 1
 	startRequest
-	stopWorkers
+	sleep 1
+	stopWorkers 1
 	stopServer
+	testResult
 }
 
 function testThreeWorkerOneRequest {
 	echo "Testing: 3 workers then 1 request"
-	sleep 1
 	startServer
 	startWorkers 3
 	startRequest
-	stopWorkers
+	sleep 1
+	stopWorkers 3
 	stopServer
+	testResult
+}
+
+function testOneRequestOneWorker {
+	echo "Testing: 1 request then 1 worker"
+	startServer
+	startRequest
+	startWorkers 1
+	sleep 1
+	stopWorkers 1
+	stopServer
+	testResult
+}
+
+function testOneRequestThreeWorker {
+	echo "Testing: 1 request then 3 workers"
+	startServer
+	startRequest
+	startWorkers 3
+	sleep 1
+	stopWorkers 3
+	stopServer
+	testResult
 }
 
 # Run tests
@@ -130,6 +157,8 @@ PASS_COUNT=0
 FAIL_COUNT=0
 testOneWorkerOneRequest
 testThreeWorkerOneRequest
+testOneRequestOneWorker
+testOneRequestThreeWorker
 
 rm -rf ${INPUT}
 echo "Passed (${PASS_COUNT}/$((PASS_COUNT + FAIL_COUNT))) tests"

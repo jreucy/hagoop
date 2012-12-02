@@ -27,6 +27,7 @@ type Request struct {
 }
 
 type Worker struct {
+	id uint
 	conn *net.TCPConn
 	job *mrlib.ServerRequestPacket
 	joinTime time.Time
@@ -37,7 +38,7 @@ type mrServer struct {
 	workers map[uint]*Worker
 	requests map[uint]*Request
 	queue *list.List
-	workerReady chan uint
+	workerReady chan *Worker
 	workerDied chan uint
 	responseChan chan mrlib.WorkerAnswerPacket
 	requestJoin chan uint
@@ -70,7 +71,7 @@ func newServer(serverListener *net.TCPListener) *mrServer {
 	server := &mrServer{}
 	server.connListener = serverListener
 	server.queue = list.New()
-	server.workerReady = make(chan uint, 0)
+	server.workerReady = make(chan *Worker, 0)
 	server.workerDied = make(chan uint, 0)
 	server.responseChan = make(chan mrlib.WorkerAnswerPacket, 0)
 	server.requestJoin = make(chan uint, 0)
@@ -95,10 +96,9 @@ func (server *mrServer) connectionHandler() {
 			server.requests[id] = request
 			go server.requestHandler(id, conn)
 		case mrlib.MsgWORKERCLIENT:
-			worker := &Worker{conn, nil, time.Now()}
-			server.workers[id] = worker
-			server.workerReady <- id
-			go server.workerHandler(id, conn)
+			worker := &Worker{id, conn, nil, time.Now()}
+			server.workerReady <- worker
+			go server.workerHandler(worker)
 		}
 		id++
 	}
@@ -110,8 +110,9 @@ func (server *mrServer) eventHandler() {
 		case id := <-server.requestJoin:
 			server.addJobs(id)
 			server.scheduleJobs()
-		case id := <-server.workerReady:
-			server.workers[id].job = nil
+		case worker := <-server.workerReady:
+			worker.job = nil
+			server.workers[worker.id] = worker
 			server.scheduleJobs()
 		case id := <-server.workerDied:
 			worker := server.workers[id]
@@ -159,23 +160,23 @@ func (server *mrServer) eventHandler() {
 }
 
 // reads in answers from worker clients
-func (server *mrServer) workerHandler(id uint, conn *net.TCPConn) {
+func (server *mrServer) workerHandler(worker *Worker) {
 
-	log.Println("Worker joined with id:", id)
+	log.Println("Worker joined with id:", worker.id)
 
 	var answer mrlib.WorkerAnswerPacket
 
 	for {
-		err := mrlib.Read(conn, &answer)
+		err := mrlib.Read(worker.conn, &answer)
 		if err != nil {
-			log.Println("Read error: Worker", id, "died")
-			server.workerDied <- id
+			log.Println("Read error: Worker", worker.id, "died")
+			server.workerDied <- worker.id
 			// Reassign current job
 			// Remove from worker map
 			return
 		}
 		server.responseChan <- answer
-		server.workerReady <- id
+		server.workerReady <- worker
 	}
 
 	return
@@ -268,6 +269,7 @@ func (server *mrServer) scheduleJobs() {
 				server.queue.PushFront(job)
 			} else {
 				w.job = job
+				server.workers[id] = w
 			}
 		}
 	}		
@@ -350,8 +352,8 @@ func countLines(fileName string) int {
 	// determine the length of the file
 	err = nil
 	for err == nil {
-		_ , err = fileBuf.ReadString('\n')
 		lines++
+		_ , err = fileBuf.ReadString('\n')
 	}
 	return lines
 }

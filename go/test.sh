@@ -1,10 +1,12 @@
 #!/bin/bash
 cd ..
+make clean > /dev/null
 make > /dev/null
 cd - > /dev/null
 
 # Set variables
-LINES=500
+# Pick random line num between [500, 10000)
+LINES=$(((RANDOM % 500) + 500))
 INPUT="wc.txt"
 
 touch ${INPUT}
@@ -77,7 +79,7 @@ function startWorkers {
 	N=$1
     for i in `seq 0 $((N-1))`
     do
-        ${WORKER} localhost:${PORT} 2> /dev/null &
+        ${WORKER} localhost:${PORT} &
         WORKER_PID[$i]=$!
     done
 }
@@ -155,6 +157,7 @@ function testOneRequestThreeWorker {
 # Run tests
 PASS_COUNT=0
 FAIL_COUNT=0
+echo "Running tests with input file of length $((LINES * 3))"
 testOneWorkerOneRequest
 testThreeWorkerOneRequest
 testOneRequestOneWorker

@@ -39,6 +39,7 @@ type mrServer struct {
 	requests map[uint]*Request
 	queue *list.List
 	workerReady chan uint
+	workerDied chan uint
 	responseChan chan mrlib.WorkerAnswerPacket
 	requestJoin chan uint
 }
@@ -71,6 +72,7 @@ func newServer(serverListener *net.TCPListener) *mrServer {
 	server.connListener = serverListener
 	server.queue = list.New()
 	server.workerReady = make(chan uint, 0)
+	server.workerDied = make(chan uint, 0)
 	server.responseChan = make(chan mrlib.WorkerAnswerPacket, 0)
 	server.requestJoin = make(chan uint, 0)
 	server.requests = make(map[uint]*Request)
@@ -109,9 +111,15 @@ func (server *mrServer) eventHandler() {
 		case id := <-server.requestJoin:
 			server.addJobs(id)
 			server.scheduleJobs()
-			// Split job and add to queue
 		case id := <-server.workerReady:
 			server.workers[id].job = nil
+			server.scheduleJobs()
+		case id := <-server.workerDied:
+			worker := server.workers[id]
+			if worker.job != nil {
+				server.queue.PushBack(worker.job)
+			}
+			delete(server.workers, id)
 			server.scheduleJobs()
 		case answer := <-server.responseChan:
 			size := answer.JobSize
@@ -161,6 +169,8 @@ func (server *mrServer) workerHandler(id uint, conn *net.TCPConn) {
 	for {
 		err := mrlib.Read(conn, &answer)
 		if err != nil {
+			log.Println("Read error: Worker", id, "died")
+			server.workerDied <- id
 			// Reassign current job
 			// Remove from worker map
 			return
@@ -178,10 +188,18 @@ func (server *mrServer) requestHandler(id uint, conn *net.TCPConn) {
 	log.Println("Request received with id:", id)
 
 	accept := mrlib.MrAnswerPacket{mrlib.MsgSUCCESS}
-	mrlib.Write(conn, accept)
+	err := mrlib.Write(conn, accept)
+	if err != nil {
+		log.Println("Write Error: Request", id, "died")
+		return
+	}
 
 	var packet mrlib.MrRequestPacket
-	mrlib.Read(conn, &packet)
+	err = mrlib.Read(conn, &packet)
+	if err != nil {
+		log.Println("Read Error: Request", id, "died")
+		return
+	}
 
 	request := server.requests[id]
 	request.binary = packet.BinaryFile
@@ -203,7 +221,7 @@ func (server *mrServer) addJobs(id uint) {
 		lines := countLines(request.input)
 		chunks := splitMapJob(lines)
 		for i := 0; i < len(chunks); i++ {
-			job := mrlib.ServerRequestPacket{}
+			job := &mrlib.ServerRequestPacket{}
 			job.MsgType = mrlib.MsgMAPREQUEST
 			job.FileName = request.input
 			job.BinaryFile = request.binary
@@ -223,7 +241,7 @@ func (server *mrServer) addJobs(id uint) {
 		fmt.Println("splitting reduce job")
 		chunks := splitReduceJob(lines, request.mapFile)
 		for i := 0; i < len(chunks); i++ {
-			job := mrlib.ServerRequestPacket{}
+			job := &mrlib.ServerRequestPacket{}
 			job.MsgType = mrlib.MsgREDUCEREQUEST
 			job.FileName = request.mapFile
 			job.BinaryFile = request.binary
@@ -239,7 +257,7 @@ func (server *mrServer) addJobs(id uint) {
 }
 
 func (server *mrServer) scheduleJobs() {
-	for _, w := range(server.workers) {
+	for id, w := range(server.workers) {
 		if server.queue.Len() <= 0 {
 			return
 		}
@@ -248,14 +266,17 @@ func (server *mrServer) scheduleJobs() {
 			err := mrlib.Write(w.conn, job)
 			if err != nil {
 				// Write didn't work. Add job back into queue
+				log.Println("Write Error: Worker", id, "died")
 				server.queue.PushFront(job)
+			} else {
+				w.job = job
 			}
 		}
 	}		
 }
 
-func (server *mrServer) combineJobs(worker *Worker) mrlib.ServerRequestPacket {
-	job := server.queue.Remove(server.queue.Front()).(mrlib.ServerRequestPacket)
+func (server *mrServer) combineJobs(worker *Worker) *mrlib.ServerRequestPacket {
+	job := server.queue.Remove(server.queue.Front()).(*mrlib.ServerRequestPacket)
 	// implement combining here
 	return job
 }
@@ -297,12 +318,11 @@ func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 	err = nil
 	for err == nil {
 		keyArr, err := fileBuf.ReadString('\n')
-		if err != nil /* || keyArr == "" */ { 
+		if err != nil { 
 			chunks[numUniqueKeys] = mrlib.MrChunk{keyStart, i}	
 			numUniqueKeys++
 			break 
 		}
-		fmt.Println(keyArr)
 		key := mrlib.GetKey(keyArr)
 
 		if key != firstKey {
@@ -319,8 +339,6 @@ func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 	}
 
 	// Same keys have to be on same worker
-	fmt.Println(chunks)
-	fmt.Println(chunks[0:numUniqueKeys])	
 	return chunks[0:numUniqueKeys]
 }
 

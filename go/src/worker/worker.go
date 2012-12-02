@@ -37,7 +37,6 @@ func main() {
 		var request mrlib.ServerRequestPacket
 		err = mrlib.Read(conn, &request)
 		if err != nil { 
-			fmt.Println("1")
 			log.Fatal("Worker: ", err)
 		}
 		answerPacket := mrlib.WorkerAnswerPacket{}

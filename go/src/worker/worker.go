@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"strconv"
 	"log"
-	"fmt"
 )
 
 const (
@@ -36,9 +35,7 @@ func main() {
 		// Read in Map or Reduce requests from server
 		var request mrlib.ServerRequestPacket
 		err = mrlib.Read(conn, &request)
-		if err != nil { 
-			log.Fatal("Worker: ", err)
-		}
+		if err != nil { log.Fatal("Worker: ", err) }
 		answerPacket := mrlib.WorkerAnswerPacket{}
 		switch (request.MsgType) {
 		case mrlib.MsgMAPREQUEST:
@@ -58,10 +55,8 @@ func main() {
 			answerPacket.RequestId = request.RequestId
 			answerPacket.MsgType = mrlib.MsgMAPANSWER
 			answerPacket.Answer = out.String() // TODO : change
-			fmt.Println("Received map message")
 
 		case mrlib.MsgREDUCEREQUEST:
-			fmt.Println("Received reduce message")
 			ranges := request.Ranges			
 			firstRange := ranges[0] // assumes single chunk, put in for loop later
 			startLine := firstRange.StartLine

@@ -280,7 +280,7 @@ func splitJob(numLines int, msgtype int) []mrlib.MrChunk {
 		numJobs := int(math.Ceil(float64(numLines)/float64(mrlib.MinJOBSIZE)))
 		chunks := make([]mrlib.MrChunk, numJobs)
 		start := 0
-		end := mrlib.MinJOBSIZE
+		end := mrlib.MinJOBSIZE - 1
 		for i := 0; i < numJobs; i++ {
 			if end > numLines {
 				end = numLines

@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"math"
 	"time"
+	"fmt"
 )
 
 type Request struct {
@@ -200,7 +201,7 @@ func (server *mrServer) addJobs(id uint) {
 	if request.mapJobs == uint(0) {
 
 		lines := countLines(request.input)
-		chunks := splitJob(lines, mrlib.MsgMAPREQUEST)
+		chunks := splitMapJob(lines)
 		for i := 0; i < len(chunks); i++ {
 			job := mrlib.ServerRequestPacket{}
 			job.MsgType = mrlib.MsgMAPREQUEST
@@ -219,7 +220,8 @@ func (server *mrServer) addJobs(id uint) {
 	} else if request.reduceJobs == uint(0) {
 		
 		lines := countLines(request.mapFile)
-		chunks := splitJob(lines, mrlib.MsgREDUCEREQUEST)
+		fmt.Println("splitting reduce job")
+		chunks := splitReduceJob(lines, request.mapFile)
 		for i := 0; i < len(chunks); i++ {
 			job := mrlib.ServerRequestPacket{}
 			job.MsgType = mrlib.MsgREDUCEREQUEST
@@ -242,7 +244,7 @@ func (server *mrServer) scheduleJobs() {
 			return
 		}
 		if w.job == nil {
-			job := server.queue.Remove(server.queue.Front()).(mrlib.ServerRequestPacket)
+			job := server.combineJobs(w)
 			err := mrlib.Write(w.conn, job)
 			if err != nil {
 				// Write didn't work. Add job back into queue
@@ -252,30 +254,74 @@ func (server *mrServer) scheduleJobs() {
 	}		
 }
 
-func splitJob(numLines int, msgtype int) []mrlib.MrChunk {
-	// split based on type. For reduce jobs, same keys have to be on same worker
-	switch msgtype {
-	case mrlib.MsgMAPREQUEST:
-		numJobs := int(math.Ceil(float64(numLines)/float64(mrlib.MinJOBSIZE)))
-		chunks := make([]mrlib.MrChunk, numJobs)
-		start := 0
-		end := mrlib.MinJOBSIZE
-		for i := 0; i < numJobs; i++ {
-			if end > numLines {
-				end = numLines
-			}
-			chunks[i] = mrlib.MrChunk{start, end}
-			start = end
-			end += mrlib.MinJOBSIZE
+func (server *mrServer) combineJobs(worker *Worker) mrlib.ServerRequestPacket {
+	job := server.queue.Remove(server.queue.Front()).(mrlib.ServerRequestPacket)
+	// implement combining here
+	return job
+}
+
+func splitMapJob(numLines int) []mrlib.MrChunk {
+	// split into chunks based on min job size
+	numJobs := int(math.Ceil(float64(numLines)/float64(mrlib.MinJOBSIZE)))
+	chunks := make([]mrlib.MrChunk, numJobs)
+	start := 0
+	end := mrlib.MinJOBSIZE
+	for i := 0; i < numJobs; i++ {
+		if end > numLines {
+			end = numLines
 		}
-		return chunks
-	// Right now, send entire reduce job to one worker. Split based on keys later
-	case mrlib.MsgREDUCEREQUEST:
-		chunks := make([]mrlib.MrChunk, 1)
-		chunks[0] = mrlib.MrChunk{0, numLines-1}
-		return chunks
+		chunks[i] = mrlib.MrChunk{start, end}
+		start = end
+		end += mrlib.MinJOBSIZE
 	}
-	return nil
+	return chunks
+}
+
+func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
+
+	// mapArray := strings.Split(mapFile, "\n")
+	chunks := make([]mrlib.MrChunk, numLines)
+
+	file, err := os.Open(mapFile)
+	if err != nil { }
+	fileBuf := bufio.NewReader(file)
+	
+	// loop through file, finding number of unique keys
+	// save start and end lines of each unique key
+	i := 1
+	numUniqueKeys := 0
+	keyStart := 0
+	keyEnd := 0
+	firstKeyArr, err := fileBuf.ReadString('\n')
+	firstKey := mrlib.GetKey(firstKeyArr)
+	err = nil
+	for err == nil {
+		keyArr, err := fileBuf.ReadString('\n')
+		if err != nil /* || keyArr == "" */ { 
+			chunks[numUniqueKeys] = mrlib.MrChunk{keyStart, i}	
+			numUniqueKeys++
+			break 
+		}
+		fmt.Println(keyArr)
+		key := mrlib.GetKey(keyArr)
+
+		if key != firstKey {
+
+			firstKey = key
+			if i - keyStart >= mrlib.MinJOBSIZE {
+				keyEnd = i
+				chunks[numUniqueKeys] = mrlib.MrChunk{keyStart, keyEnd}
+				keyStart = keyEnd
+				numUniqueKeys++
+			}
+		}
+		i++
+	}
+
+	// Same keys have to be on same worker
+	fmt.Println(chunks)
+	fmt.Println(chunks[0:numUniqueKeys])	
+	return chunks[0:numUniqueKeys]
 }
 
 func countLines(fileName string) int {

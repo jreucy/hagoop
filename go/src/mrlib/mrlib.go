@@ -2,6 +2,7 @@ package mrlib
 
 import (
 	"encoding/json"
+	"strings"
 	"net"
 )
 
@@ -70,6 +71,11 @@ func Min(a int, b int) int {
 	return b
 }
 
+func GetKey(line string) string {
+	keyArr := strings.Split(line, ",")
+	return keyArr[0]
+}
+
 
 const (
 	Verbosity = 1
@@ -77,7 +83,7 @@ const (
 	MAP = "map"
 	REDUCE = "reduce"
 	MaxMESSAGESIZE = 10000 // change later
-	MinJOBSIZE = 100  // change
+	MinJOBSIZE = 50  // change
 	MaxJOBSIZE = 10000 // change
 	MsgREQUESTCLIENT = iota
 	MsgWORKERCLIENT

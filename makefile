@@ -1,16 +1,16 @@
-all: go/src/mrlib/mrlib.go worker request server main
+all: go/src/mrlib/mrlib.go go/bin/worker go/bin/request go/bin/server go/bin/main
 
-main: go/src/client/client-impl.go go/src/main/main.go
-	go build go/src/main/main.go
+go/bin/main: go/src/client/client-impl.go go/src/main/main.go
+	go build -o go/bin/main go/src/main/main.go
 
-worker: go/src/worker/worker.go
-	go build go/src/worker/worker.go
+go/bin/worker: go/src/worker/worker.go
+	go build -o go/bin/worker go/src/worker/worker.go
 
-request: go/src/request/request.go
-	go build go/src/request/request.go
+go/bin/request: go/src/request/request.go
+	go build -o go/bin/request go/src/request/request.go
 
-server: go/src/server/server.go
-	go build go/src/server/server.go
+go/bin/server: go/src/server/server.go
+	go build -o go/bin/server go/src/server/server.go
 
 clean:
-	rm main worker request server
+	rm go/bin/main go/bin/worker go/bin/request go/bin/server

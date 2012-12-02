@@ -38,6 +38,7 @@ type mrServer struct {
 	requests map[uint]*Request
 	queue *list.List
 	workerReady chan uint
+	workerDied chan uint
 	responseChan chan mrlib.WorkerAnswerPacket
 	requestJoin chan uint
 }
@@ -70,6 +71,7 @@ func newServer(serverListener *net.TCPListener) *mrServer {
 	server.connListener = serverListener
 	server.queue = list.New()
 	server.workerReady = make(chan uint, 0)
+	server.workerDied = make(chan uint, 0)
 	server.responseChan = make(chan mrlib.WorkerAnswerPacket, 0)
 	server.requestJoin = make(chan uint, 0)
 	server.requests = make(map[uint]*Request)
@@ -111,6 +113,13 @@ func (server *mrServer) eventHandler() {
 			// Split job and add to queue
 		case id := <-server.workerReady:
 			server.workers[id].job = nil
+			server.scheduleJobs()
+		case id := <-server.workerDied:
+			worker := server.workers[id]
+			if worker.job != nil {
+				server.queue.PushBack(worker.job)
+			}
+			delete(server.workers, id)
 			server.scheduleJobs()
 		case answer := <-server.responseChan:
 			size := answer.JobSize
@@ -160,6 +169,8 @@ func (server *mrServer) workerHandler(id uint, conn *net.TCPConn) {
 	for {
 		err := mrlib.Read(conn, &answer)
 		if err != nil {
+			log.Println("Read error: Worker", id, "died")
+			server.workerDied <- id
 			// Reassign current job
 			// Remove from worker map
 			return
@@ -202,7 +213,7 @@ func (server *mrServer) addJobs(id uint) {
 		lines := countLines(request.input)
 		chunks := splitJob(lines, mrlib.MsgMAPREQUEST)
 		for i := 0; i < len(chunks); i++ {
-			job := mrlib.ServerRequestPacket{}
+			job := &mrlib.ServerRequestPacket{}
 			job.MsgType = mrlib.MsgMAPREQUEST
 			job.FileName = request.input
 			job.BinaryFile = request.binary
@@ -221,7 +232,7 @@ func (server *mrServer) addJobs(id uint) {
 		lines := countLines(request.mapFile)
 		chunks := splitJob(lines, mrlib.MsgREDUCEREQUEST)
 		for i := 0; i < len(chunks); i++ {
-			job := mrlib.ServerRequestPacket{}
+			job := &mrlib.ServerRequestPacket{}
 			job.MsgType = mrlib.MsgREDUCEREQUEST
 			job.FileName = request.mapFile
 			job.BinaryFile = request.binary
@@ -237,16 +248,19 @@ func (server *mrServer) addJobs(id uint) {
 }
 
 func (server *mrServer) scheduleJobs() {
-	for _, w := range(server.workers) {
+	for id, w := range(server.workers) {
 		if server.queue.Len() <= 0 {
 			return
 		}
 		if w.job == nil {
-			job := server.queue.Remove(server.queue.Front()).(mrlib.ServerRequestPacket)
+			job := server.queue.Remove(server.queue.Front()).(*mrlib.ServerRequestPacket)
 			err := mrlib.Write(w.conn, job)
 			if err != nil {
 				// Write didn't work. Add job back into queue
+				log.Println("Write Error: Worker", id, "died")
 				server.queue.PushFront(job)
+			} else {
+				w.job = job
 			}
 		}
 	}		

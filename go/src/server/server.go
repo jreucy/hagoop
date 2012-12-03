@@ -305,7 +305,8 @@ func (server *mrServer) combineJobs(worker *Worker) *mrlib.ServerRequestPacket {
 	firstJob := server.queue.Remove(server.queue.Front()).(*mrlib.ServerRequestPacket)
 	jobsToRemove := make([]*list.Element, mrlib.MaxJOBNUM)
 	i := 0
-	for job := server.queue.Front(); job != nil && i < maxJobSize; job = job.Next() {
+	numLines := firstJob.Ranges[0].EndLine  - firstJob.Ranges[0].StartLine
+	for job := server.queue.Front(); job != nil && i < maxJobSize && numLines < maxJobSize * mrlib.MinJOBSIZE; job = job.Next() {
 		j := job.Value.(*mrlib.ServerRequestPacket)
 		sameType := j.MsgType == firstJob.MsgType
 		sameFile := j.FileName == firstJob.FileName
@@ -318,6 +319,7 @@ func (server *mrServer) combineJobs(worker *Worker) *mrlib.ServerRequestPacket {
 			firstJob.JobSize++
 			jobsToRemove[i] = job
 			i++
+			numLines += (jRange[0].EndLine - jRange[0].StartLine)
 		}
 	}
 
@@ -325,7 +327,8 @@ func (server *mrServer) combineJobs(worker *Worker) *mrlib.ServerRequestPacket {
 		server.queue.Remove(jobsToRemove[x])
 	}
 
-	// implement combining here
+	log.Println(numLines)
+	log.Println(firstJob)
 	return firstJob
 }
 

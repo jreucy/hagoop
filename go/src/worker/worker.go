@@ -8,16 +8,32 @@ import (
 	"bytes"
 	"strconv"
 	"log"
+	"time"
+	"math/rand"
 )
 
 const (
 	verbosity = mrlib.Verbosity
 )
 
+func fail(rate int) {
+	for {
+		time.Sleep(100 * time.Millisecond)
+		n := rand.Intn(100)
+		if rate > n {
+			log.Println("Random Failure")
+			os.Exit(0)
+		}
+	}
+}
+
 func main() {
 
-	// "./worker host:port"
-	if len(os.Args) != 2 { return }
+	// "./worker host:port failurerate"
+	if len(os.Args) != 3 { return }
+
+	rate, _ := strconv.Atoi(os.Args[2])
+	go fail(rate)
 
 	hostport := os.Args[1]
 

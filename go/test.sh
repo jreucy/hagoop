@@ -12,9 +12,7 @@ INPUT="wc.txt"
 touch ${INPUT}
 for i in `seq 0 $((LINES-1))`
 do
-	echo "cat" >> ${INPUT}
-	echo "dog" >> ${INPUT}
-	echo "rat" >> ${INPUT}
+	echo "cat dog rat" >> ${INPUT}
 done
 
 OUTPUT="log"
@@ -25,6 +23,7 @@ EVIL=./bin/evil-worker
 DEAD=./bin/dead-worker
 LONG=./bin/long-worker
 WORKER=./bin/worker
+REQS=0
 
 # Pick random port between [10000, 20000)
 PORT=$(((RANDOM % 10000) + 10000))
@@ -44,16 +43,6 @@ function startEvilWorkers {
     for i in `seq 0 $((N-1))`
     do
         ${EVIL} localhost:${PORT} 2> /dev/null &
-        EVIL_PID[$i]=$!
-    done
-}
-
-function stopEvilWorkers {
-	N=${#EVIL_PID[@]}
-    for i in `seq 0 $((N-1))`
-    do
-        kill -9 ${EVIL_PID[$i]}
-        wait ${EVIL_PID[$i]} 2> /dev/null
     done
 }
 
@@ -62,16 +51,6 @@ function startDeadWorkers {
     for i in `seq 0 $((N-1))`
     do
         ${DEAD} localhost:${PORT} 2> /dev/null &
-        DEAD_PID[$i]=$!
-    done
-}
-
-function stopDeadWorkers {
-	N=${#DEAD_PID[@]}
-    for i in `seq 0 $((N-1))`
-    do
-        kill -9 ${DEAD_PID[$i]}
-        wait ${DEAD_PID[$i]} 2> /dev/null
     done
 }
 
@@ -79,23 +58,13 @@ function startWorkers {
 	N=$1
     for i in `seq 0 $((N-1))`
     do
-        ${WORKER} localhost:${PORT} &
-        WORKER_PID[$i]=$!
-    done
-}
-
-function stopWorkers {
-	N=$1
-    for i in `seq 0 $((N-1))`
-    do
-        kill -9 ${WORKER_PID[$i]}
-        wait ${WORKER_PID[$i]} 2> /dev/null
+        ${WORKER} localhost:${PORT} $2 2> /dev/null &
     done
 }
 
 function startRequests {
-	N=$1
-    for i in `seq 0 $((N-1))`
+	N=$((REQS + $1))
+    for i in `seq ${REQS} $((N-1))`
     do
         ${REQUEST} localhost:${PORT} ${INPUT} ${OUTPUT}:${i} ${MAIN} > /dev/null &
         REQUEST_PID[$i]=$!
@@ -128,20 +97,18 @@ function testResults {
 function testOneWorkerOneRequest {
 	echo "Testing: 1 worker then 1 request"
 	startServer
-	startWorkers 1
+	startWorkers 1 0
 	startRequests 1
 	testResults 1
-	stopWorkers 1
 	stopServer	
 }
 
 function testThreeWorkerOneRequest {
 	echo "Testing: 3 workers then 1 request"
 	startServer
-	startWorkers 3
+	startWorkers 3 0
 	startRequests 1
 	testResults 1
-	stopWorkers 3
 	stopServer
 }
 
@@ -149,9 +116,8 @@ function testOneRequestOneWorker {
 	echo "Testing: 1 request then 1 worker"
 	startServer
 	startRequests 1
-	startWorkers 1
+	startWorkers 1 0
 	testResults 1
-	stopWorkers 1
 	stopServer
 }
 
@@ -159,31 +125,116 @@ function testOneRequestThreeWorker {
 	echo "Testing: 1 request then 3 workers"
 	startServer
 	startRequests 1
-	startWorkers 3
+	startWorkers 3 0
 	testResults 1
-	stopWorkers 3
 	stopServer
 }
 
 function testThreeWorkerThreeRequest {
 	echo "Testing: 3 workers then 3 requests"
 	startServer
-	startWorkers 3
+	startWorkers 3 0
 	startRequests 3
 	testResults 3
-	stopWorkers 3
+	stopServer
+}
+
+function testThreeEqualWorkers {
+	echo "Testing: 3 workers, same connection time"
+	startServer
+	startWorkers 3 0
+	sleep 3
+	startRequests 1
+	testResults 1
+	stopServer
+}
+
+function testThreeIncreasedWorkers {
+	echo "Testing: 3 workers, increasing connection time"
+	startServer
+	startWorkers 1 0
+	sleep 1
+	startWorkers 1 0
+	sleep 1
+	startWorkers 1 0
+	sleep 1
+	startRequests 1
+	testResults 1
+	stopServer
+}
+
+function testTenBadWorkers {
+	echo "Testing: 10 workers, failure rate of 25%"
+	startServer
+	startWorkers 10 25
+	sleep .1
+	startRequests 1
+	testResults 1
+	stopServer
+}
+
+function testHundredTerribleWorkers {
+	echo "Testing: 100 workers, failure rate of 75%"
+	startServer
+	startWorkers 100 75
+	startRequests 1
+	testResults 1
+	stopServer
+}
+
+function testMixedWorkers {
+	echo "Testing: 6 requests, 60 workers, various failure rates and connection times"
+	startServer
+	startWorkers 10 0
+	sleep 1
+	startWorkers 10 25
+	sleep 1
+	startRequests 3
+	startWorkers 10 45
+	sleep 1
+	startWorkers 10 65
+	sleep 1
+	startWorkers 10 85
+	startEvilWorkers 10
+	REQS=3
+	startRequests 3
+	testResults 6
+	startWorkers 
+	stopServer
+	REQS=0
+}
+
+function testEvilWorkers {
+	echo "Testing: 10 evil-workers, request, 10 evil workers, good worker"
+	startServer
+	startEvilWorkers 10
+	sleep 3
+	startRequests 1
+	startEvilWorkers 10
+	startWorkers 1 0
+	testResults 1
 	stopServer
 }
 
 # Run tests
 PASS_COUNT=0
 FAIL_COUNT=0
-echo "Running tests with input file of length $((LINES * 3))"
+echo "Running tests with input file of length ${LINES}"
+echo ""
+echo "Running sanity tests"
 testOneWorkerOneRequest
 testThreeWorkerOneRequest
 testOneRequestOneWorker
 testOneRequestThreeWorker
 testThreeWorkerThreeRequest
+echo ""
+echo "Running reliable worker tests"
+testThreeEqualWorkers
+testThreeIncreasedWorkers
+testTenBadWorkers
+testHundredTerribleWorkers
+testMixedWorkers
+testEvilWorkers
 
 rm -rf ${INPUT}
 echo "Passed (${PASS_COUNT}/$((PASS_COUNT + FAIL_COUNT))) tests"

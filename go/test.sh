@@ -45,7 +45,7 @@ REQS=0
 PORT=$(((RANDOM % 10000) + 10000))
 
 function startServer {
-	${SERVER} ${PORT} &
+	${SERVER} ${PORT} 2> /dev/null &
 	SERVER_PID=$!
 }
 
@@ -279,11 +279,11 @@ function testStress {
 	startWorkers 10 0
 	startEvilWorkers 10 
 	startDeadWorkers 10
-	startRequests 1
-	echo "Started 1 request"
+	startRequests 5
+	echo "Started 3 requests"
 	sleep 1
 	startWorkers 10 0
-	testResults 1
+	testResults 5
 	stopServer
 }
 

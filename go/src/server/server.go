@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"math"
 	"time"
+	"io/ioutil"
 )
 
 type Request struct {
@@ -228,26 +229,37 @@ func (server *mrServer) splitFailedJob(job *mrlib.ServerRequestPacket) {
 	}
 }
 
-func (server *mrServer) addJobs(id uint) {
+func (server *mrServer) addDir(id uint, dirName string) {
 	request := server.requests[id]
-	// Have not added map jobs for this request yet
-	if request.mapJobs == uint(0) {
-
-		lines := countLines(request.input)
+	files, _ := ioutil.ReadDir(dirName)
+	for f := 0; f < len(files); f++ {
+		if files[f].IsDir() {
+			server.addDir(id, dirName + "/" + files[f].Name())
+		}
+		lines := countLines(dirName + "/" + files[f].Name())
 		chunks := splitMapJob(lines)
 		for i := 0; i < len(chunks); i++ {
 			job := &mrlib.ServerRequestPacket{}
 			job.MsgType = mrlib.MsgMAPREQUEST
-			job.FileName = request.input
+			job.FileName = dirName + "/" + files[f].Name()
 			job.BinaryFile = request.binary
 			job.Ranges = []mrlib.MrChunk{chunks[i]}
 			job.RequestId = id
 			job.JobSize = uint(1)
 
 			server.queue.PushBack(job)
+			log.Println(job)
 		}
 
-		request.mapJobs = uint(len(chunks))
+		request.mapJobs += uint(len(chunks))
+	}
+}
+
+func (server *mrServer) addJobs(id uint) {
+	request := server.requests[id]
+	// Have not added map jobs for this request yet
+	if request.mapJobs == uint(0) {
+		server.addDir(id, request.input)
 
 	// Have not added reduce jobs for this request yet
 	} else if request.reduceJobs == uint(0) {

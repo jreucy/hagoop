@@ -7,14 +7,25 @@ cd - > /dev/null
 # Set variables
 # Pick random line num between [500, 10000)
 LINES=$(((RANDOM % 500) + 500))
-INPUT="wc.txt"
+INPUT="wc"
 
 rm .m*
-rm ${INPUT}
-touch ${INPUT}
-for i in `seq 0 $((LINES-1))`
+rm -rf ${INPUT}
+mkdir ${INPUT}
+mkdir ${INPUT}/wc2
+for i in `seq 0 $((LINES/3))`
 do
-	echo "cat dog rat" >> ${INPUT}
+	echo "cat dog rat" >> ${INPUT}/wc1.txt
+done
+
+for i in `seq $(((LINES/3) + 1)) $(((2*LINES)/3))`
+do
+	echo "cat dog rat" >> ${INPUT}/wc2.txt
+done
+
+for i in `seq $((((2*LINES)/3) + 1)) $((LINES-1))`
+do
+	echo "cat dog rat" >> ${INPUT}/wc2/wc3.txt
 done
 
 OUTPUT="log"

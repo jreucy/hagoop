@@ -82,7 +82,7 @@ const (
 	TCP = "tcp"
 	MAP = "map"
 	REDUCE = "reduce"
-	MaxMESSAGESIZE = 10000 // change later
+	MaxMESSAGESIZE = 1000000 // change later
 	MinJOBSIZE = 50 
 	MaxJOBNUM = 100
 	MsgREQUESTCLIENT = iota

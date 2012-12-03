@@ -32,6 +32,7 @@ type Worker struct {
 	conn *net.TCPConn
 	job *mrlib.ServerRequestPacket
 	joinTime time.Time
+	writeChan chan *mrlib.ServerRequestPacket
 }
 
 type mrServer struct {
@@ -97,7 +98,7 @@ func (server *mrServer) connectionHandler() {
 			server.requests[id] = request
 			go server.requestHandler(id, conn)
 		case mrlib.MsgWORKERCLIENT:
-			worker := &Worker{id, conn, nil, time.Now()}
+			worker := &Worker{id, conn, nil, time.Now(), make(chan *mrlib.ServerRequestPacket, 0)}
 			server.workerReady <- worker
 			go server.workerHandler(worker)
 		}
@@ -113,7 +114,6 @@ func (server *mrServer) eventHandler() {
 			server.scheduleJobs()
 		case worker := <-server.workerReady:
 			worker.job = nil
-			worker.conn.SetDeadline(time.Time{})
 			server.workers[worker.id] = worker
 			server.scheduleJobs()
 		case id := <-server.workerDied:
@@ -169,9 +169,13 @@ func (server *mrServer) workerHandler(worker *Worker) {
 	var answer mrlib.WorkerAnswerPacket
 
 	for {
+		job := <- worker.writeChan
+		mrlib.Write(worker.conn, job)
+		worker.conn.SetDeadline(time.Now().Add(5 * time.Second))
 		err := mrlib.Read(worker.conn, &answer)
 		if err != nil {
 			log.Println("Read error: Worker", worker.id, "died")
+			worker.conn.SetLinger(0)
 			worker.conn.Close()
 			server.workerDied <- worker.id
 			return
@@ -248,7 +252,6 @@ func (server *mrServer) addDir(id uint, dirName string) {
 			job.JobSize = uint(1)
 
 			server.queue.PushBack(job)
-			log.Println(job)
 		}
 
 		request.mapJobs += uint(len(chunks))
@@ -289,17 +292,9 @@ func (server *mrServer) scheduleJobs() {
 		}
 		if w.job == nil {
 			job := server.combineJobs(w)
-			err := w.conn.SetDeadline(time.Now().Add(time.Duration(5) * time.Second))
-			if err != nil { log.Println(err) }
-			err = mrlib.Write(w.conn, job)
-			if err != nil {
-				// Write didn't work. Add job back into queue
-				log.Println("Write Error: Worker", id, "died")
-				server.queue.PushFront(job)
-			} else {
-				w.job = job
-				server.workers[id] = w
-			}
+			w.writeChan <- job
+			w.job = job
+			server.workers[id] = w
 		}
 	}		
 }

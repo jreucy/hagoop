@@ -35,6 +35,7 @@ REQUEST=./bin/request
 EVIL=./bin/evil-worker
 DEAD=./bin/dead-worker
 LONG=./bin/long-worker
+LOOP=./bin/loop-worker
 WORKER=./bin/worker
 REQS=0
 
@@ -74,6 +75,16 @@ function startLongWorker {
 
 function waitLongWorker {
     wait ${LONG_PID} 2> /dev/null
+}
+
+function startLoopWorker {
+    ${LOOP} localhost:${PORT} 2> /dev/null &
+	LOOP_PID=$!
+}
+
+function stopLoopWorker {
+	kill -9 ${LOOP_PID}
+    wait ${LOOP_PID} 2> /dev/null
 }
 
 function startWorkers {
@@ -238,14 +249,26 @@ function testEvilWorkers {
 	stopServer
 }
 
-function testTimeout {
-	echo "Testing: worker timeout"
+function testTimeoutLongWorker {
+	echo "Testing: worker timeout but returns"
 	startServer
 	startRequests 1
 	startLongWorker
 	waitLongWorker
 	startWorkers 10 0
 	testResults 1
+	stopServer
+}
+
+function testTimeoutInfWorker {
+	echo "Testing: worker timeout no return"
+	startServer
+	startLoopWorker
+	startRequests 1
+	sleep 10
+	startWorkers 10 0
+	testResults 1
+	stopLoopWorker
 	stopServer
 }
 
@@ -268,7 +291,8 @@ testTenBadWorkers
 testHundredTerribleWorkers
 testMixedWorkers
 testEvilWorkers
-testTimeout
+testTimeoutLongWorker
+testTimeoutInfWorker
 
 rm -rf ${INPUT}
 echo "Passed (${PASS_COUNT}/$((PASS_COUNT + FAIL_COUNT))) tests"

@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"math"
 	"time"
-	"fmt"
 )
 
 type Request struct {
@@ -117,7 +116,7 @@ func (server *mrServer) eventHandler() {
 		case id := <-server.workerDied:
 			worker := server.workers[id]
 			if worker.job != nil {
-				server.queue.PushBack(worker.job)
+				server.splitFailedJob(worker.job)
 			}
 			delete(server.workers, id)
 			server.scheduleJobs()
@@ -213,6 +212,21 @@ func (server *mrServer) requestHandler(id uint, conn *net.TCPConn) {
 	return
 }
 
+func (server *mrServer) splitFailedJob(job *mrlib.ServerRequestPacket) {
+	ranges := job.Ranges
+
+	for i := 0; i < len(ranges); i++ {
+		newServerRequest := &mrlib.ServerRequestPacket{}
+		newServerRequest.MsgType = job.MsgType
+		newServerRequest.FileName = job.FileName
+		newServerRequest.BinaryFile = job.BinaryFile
+		newServerRequest.Ranges = []mrlib.MrChunk{ranges[i]}
+		newServerRequest.RequestId = job.RequestId
+		newServerRequest.JobSize = 1
+		server.queue.PushBack(newServerRequest)
+	}
+}
+
 func (server *mrServer) addJobs(id uint) {
 	request := server.requests[id]
 	// Have not added map jobs for this request yet
@@ -238,7 +252,6 @@ func (server *mrServer) addJobs(id uint) {
 	} else if request.reduceJobs == uint(0) {
 		
 		lines := countLines(request.mapFile)
-		fmt.Println("splitting reduce job")
 		chunks := splitReduceJob(lines, request.mapFile)
 		for i := 0; i < len(chunks); i++ {
 			job := &mrlib.ServerRequestPacket{}
@@ -276,9 +289,33 @@ func (server *mrServer) scheduleJobs() {
 }
 
 func (server *mrServer) combineJobs(worker *Worker) *mrlib.ServerRequestPacket {
-	job := server.queue.Remove(server.queue.Front()).(*mrlib.ServerRequestPacket)
+	workerLife := int(time.Now().Sub(worker.joinTime) / (1 * time.Second))
+	maxJobSize := mrlib.Min(workerLife, mrlib.MaxJOBNUM)
+	firstJob := server.queue.Remove(server.queue.Front()).(*mrlib.ServerRequestPacket)
+	jobsToRemove := make([]*list.Element, mrlib.MaxJOBNUM)
+	i := 0
+	for job := server.queue.Front(); job != nil && i < maxJobSize; job = job.Next() {
+		j := job.Value.(*mrlib.ServerRequestPacket)
+		sameType := j.MsgType == firstJob.MsgType
+		sameFile := j.FileName == firstJob.FileName
+		sameRequest := j.RequestId == firstJob.RequestId
+		if sameType && sameFile && sameRequest {
+			firstRange := firstJob.Ranges
+			jRange := j.Ranges
+			firstRange = append(firstRange, jRange...)
+			firstJob.Ranges = firstRange
+			firstJob.JobSize++
+			jobsToRemove[i] = job
+			i++
+		}
+	}
+
+	for x := 0; x < i; x++ {
+		server.queue.Remove(jobsToRemove[x])
+	}
+
 	// implement combining here
-	return job
+	return firstJob
 }
 
 func splitMapJob(numLines int) []mrlib.MrChunk {
@@ -300,8 +337,8 @@ func splitMapJob(numLines int) []mrlib.MrChunk {
 
 func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 
-	// mapArray := strings.Split(mapFile, "\n")
-	chunks := make([]mrlib.MrChunk, numLines)
+	maxJobs := int(math.Ceil(float64(numLines)/float64(mrlib.MinJOBSIZE)))
+	chunks := make([]mrlib.MrChunk, maxJobs)
 
 	file, err := os.Open(mapFile)
 	if err != nil { }

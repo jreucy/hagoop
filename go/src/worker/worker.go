@@ -40,15 +40,17 @@ func main() {
 		switch (request.MsgType) {
 		case mrlib.MsgMAPREQUEST:
 			ranges := request.Ranges
-			firstRange := ranges[0] // assumes single chunk, put in for loop later
-			startLine := firstRange.StartLine
-			endLine := firstRange.EndLine
-			cmd := exec.Command(request.BinaryFile, mrlib.MAP,  request.FileName, strconv.Itoa(startLine), strconv.Itoa(endLine))
 			var out bytes.Buffer 
-			cmd.Stdout = &out 
-			err := cmd.Start()	
-			if err != nil { log.Fatal("Worker: ", err) }
-			err = cmd.Wait()
+			for i := 0; i < len(ranges); i++ {
+				firstRange := ranges[i] 
+				startLine := firstRange.StartLine
+				endLine := firstRange.EndLine
+				cmd := exec.Command(request.BinaryFile, mrlib.MAP,  request.FileName, strconv.Itoa(startLine), strconv.Itoa(endLine))
+				cmd.Stdout = &out 
+				err := cmd.Start()	
+				if err != nil { log.Fatal("Worker: ", err) }
+				err = cmd.Wait()
+			}
 
 			// send back results
 			answerPacket.JobSize = request.JobSize
@@ -57,18 +59,20 @@ func main() {
 			answerPacket.Answer = out.String() // TODO : change
 
 		case mrlib.MsgREDUCEREQUEST:
-			ranges := request.Ranges			
-			firstRange := ranges[0] // assumes single chunk, put in for loop later
-			startLine := firstRange.StartLine
-			endLine := firstRange.EndLine
-			cmd := exec.Command(request.BinaryFile, mrlib.REDUCE,  request.FileName, strconv.Itoa(startLine), strconv.Itoa(endLine))
-			var out bytes.Buffer 
-			cmd.Stdout = &out 
-			err := cmd.Start() 
-			if err != nil {
-				log.Fatal(err)
+			ranges := request.Ranges		
+			var out bytes.Buffer
+			for i := 0; i < len(ranges); i++ {
+				firstRange := ranges[i] // assumes single chunk, put in for loop later
+				startLine := firstRange.StartLine
+				endLine := firstRange.EndLine
+				cmd := exec.Command(request.BinaryFile, mrlib.REDUCE,  request.FileName, strconv.Itoa(startLine), strconv.Itoa(endLine))
+				cmd.Stdout = &out 
+				err := cmd.Start() 
+				if err != nil {
+					log.Fatal(err)
+				}
+				err = cmd.Wait()
 			}
-			err = cmd.Wait()
 
 			// send back results
 			answerPacket.JobSize = request.JobSize

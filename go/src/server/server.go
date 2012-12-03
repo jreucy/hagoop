@@ -204,7 +204,7 @@ func (server *mrServer) requestHandler(id uint, conn *net.TCPConn) {
 	request := server.requests[id]
 	request.binary = packet.BinaryFile
 	request.input = packet.Directory
-	request.mapFile = "tmp.txt" // generate unique file name here
+	request.mapFile = ".mapFile" + strconv.FormatUint(uint64(id), 10)
 	request.output = packet.AnswerFileName
 
 	server.requests[id] = request

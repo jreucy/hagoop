@@ -93,65 +93,86 @@ function stopWorkers {
     done
 }
 
-function startRequest {
-    ${REQUEST} localhost:${PORT} ${INPUT} ${OUTPUT} ${MAIN} > /dev/null &
+function startRequests {
+	N=$1
+    for i in `seq 0 $((N-1))`
+    do
+        ${REQUEST} localhost:${PORT} ${INPUT} ${OUTPUT}:${i} ${MAIN} > /dev/null &
+        REQUEST_PID[$i]=$!
+    done
 }
 
-function testResult {
-	PASS=`cat ${OUTPUT} | grep ${LINES} | wc -l`
-    if [ "$PASS" -eq 3 ]
+function testResults {
+	N=$1
+	PASSED=0
+	for i in `seq 0 $((N-1))`
+    do
+    	wait ${REQUEST_PID[$i]} 2> /dev/null
+        PASS=`cat ${OUTPUT}:$i | grep ${LINES} | wc -l`
+	    if [ "$PASS" -eq 3 ]
+	    then
+	    	PASSED=$((PASSED + 1))
+	   	fi
+	    rm -rf ${OUTPUT}:$i
+    done
+    if [ "$PASSED" -eq $N ]
     then
-        echo "PASS"
+    	echo "PASS"
         PASS_COUNT=$((PASS_COUNT + 1))
     else
         echo "FAIL"
         FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
-    rm -rf ${OUTPUT}
 }
 
 function testOneWorkerOneRequest {
 	echo "Testing: 1 worker then 1 request"
 	startServer
 	startWorkers 1
-	startRequest
-	sleep 1
+	startRequests 1
+	testResults 1
 	stopWorkers 1
-	stopServer
-	testResult
+	stopServer	
 }
 
 function testThreeWorkerOneRequest {
 	echo "Testing: 3 workers then 1 request"
 	startServer
 	startWorkers 3
-	startRequest
-	sleep 1
+	startRequests 1
+	testResults 1
 	stopWorkers 3
 	stopServer
-	testResult
 }
 
 function testOneRequestOneWorker {
 	echo "Testing: 1 request then 1 worker"
 	startServer
-	startRequest
+	startRequests 1
 	startWorkers 1
-	sleep 1
+	testResults 1
 	stopWorkers 1
 	stopServer
-	testResult
 }
 
 function testOneRequestThreeWorker {
 	echo "Testing: 1 request then 3 workers"
 	startServer
-	startRequest
+	startRequests 1
 	startWorkers 3
-	sleep 1
+	testResults 1
 	stopWorkers 3
 	stopServer
-	testResult
+}
+
+function testThreeWorkerThreeRequest {
+	echo "Testing: 3 workers then 3 requests"
+	startServer
+	startWorkers 3
+	startRequests 3
+	testResults 3
+	stopWorkers 3
+	stopServer
 }
 
 # Run tests
@@ -162,6 +183,7 @@ testOneWorkerOneRequest
 testThreeWorkerOneRequest
 testOneRequestOneWorker
 testOneRequestThreeWorker
+testThreeWorkerThreeRequest
 
 rm -rf ${INPUT}
 echo "Passed (${PASS_COUNT}/$((PASS_COUNT + FAIL_COUNT))) tests"

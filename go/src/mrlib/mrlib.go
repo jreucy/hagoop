@@ -64,6 +64,13 @@ func Read(conn *net.TCPConn, varPointer interface{}) error {
 	return nil
 }
 
+func Min(a int, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func GetKey(line string) string {
 	keyArr := strings.Split(line, ",")
 	return keyArr[0]

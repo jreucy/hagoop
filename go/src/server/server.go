@@ -327,8 +327,6 @@ func (server *mrServer) combineJobs(worker *Worker) *mrlib.ServerRequestPacket {
 		server.queue.Remove(jobsToRemove[x])
 	}
 
-	log.Println(numLines)
-	log.Println(firstJob)
 	return firstJob
 }
 

@@ -171,7 +171,7 @@ func (server *mrServer) workerHandler(worker *Worker) {
 	for {
 		job := <- worker.writeChan
 		mrlib.Write(worker.conn, job)
-		worker.conn.SetDeadline(time.Now().Add(5 * time.Second))
+		worker.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 		err := mrlib.Read(worker.conn, &answer)
 		if err != nil {
 			log.Println("Read error: Worker", worker.id, "died")

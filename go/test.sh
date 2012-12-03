@@ -10,23 +10,25 @@ LINES=$(((RANDOM % 500) + 500))
 INPUT="wc"
 
 rm .m*
-rm -rf ${INPUT}
-mkdir ${INPUT}
-mkdir ${INPUT}/wc2
-for i in `seq 0 $((LINES/3))`
-do
-	echo "cat dog rat" >> ${INPUT}/wc1.txt
-done
+function makeInput {
+	rm -rf ${INPUT}
+	mkdir ${INPUT}
+	mkdir ${INPUT}/wc2
+	for i in `seq 0 $((LINES/3))`
+	do
+		echo "cat dog rat" >> ${INPUT}/wc1.txt
+	done
 
-for i in `seq $(((LINES/3) + 1)) $(((2*LINES)/3))`
-do
-	echo "cat dog rat" >> ${INPUT}/wc2.txt
-done
+	for i in `seq $(((LINES/3) + 1)) $(((2*LINES)/3))`
+	do
+		echo "cat dog rat" >> ${INPUT}/wc2.txt
+	done
 
-for i in `seq $((((2*LINES)/3) + 1)) $((LINES-1))`
-do
-	echo "cat dog rat" >> ${INPUT}/wc2/wc3.txt
-done
+	for i in `seq $((((2*LINES)/3) + 1)) $((LINES-1))`
+	do
+		echo "cat dog rat" >> ${INPUT}/wc2/wc3.txt
+	done
+}
 
 OUTPUT="log"
 SERVER=./bin/server
@@ -43,7 +45,7 @@ REQS=0
 PORT=$(((RANDOM % 10000) + 10000))
 
 function startServer {
-	${SERVER} ${PORT} 2> /dev/null &
+	${SERVER} ${PORT} &
 	SERVER_PID=$!
 }
 
@@ -272,10 +274,24 @@ function testTimeoutInfWorker {
 	stopServer
 }
 
+function testStress {
+	startServer
+	startWorkers 10 0
+	startEvilWorkers 10 
+	startDeadWorkers 10
+	startRequests 1
+	echo "Started 1 request"
+	sleep 1
+	startWorkers 10 0
+	testResults 1
+	stopServer
+}
+
 # Run tests
 PASS_COUNT=0
 FAIL_COUNT=0
-echo "Running tests with input file of length ${LINES}"
+makeInput
+echo "Running tests with input file of directory ${LINES}"
 echo ""
 echo "Running sanity tests"
 testOneWorkerOneRequest
@@ -293,6 +309,14 @@ testMixedWorkers
 testEvilWorkers
 testTimeoutLongWorker
 testTimeoutInfWorker
+echo ""
+LINES=$(((RANDOM % 50000) + 50000))
+echo "Running tests with input directory of ${LINES} lines"
+echo "Creating directory..."
+makeInput
+echo "Directory created..."
+echo "Running stress test"
+testStress
 
 rm -rf ${INPUT}
 echo "Passed (${PASS_COUNT}/$((PASS_COUNT + FAIL_COUNT))) tests"

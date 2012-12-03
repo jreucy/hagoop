@@ -9,6 +9,8 @@ cd - > /dev/null
 LINES=$(((RANDOM % 500) + 500))
 INPUT="wc.txt"
 
+rm .m*
+rm ${INPUT}
 touch ${INPUT}
 for i in `seq 0 $((LINES-1))`
 do
@@ -52,6 +54,15 @@ function startDeadWorkers {
     do
         ${DEAD} localhost:${PORT} 2> /dev/null &
     done
+}
+
+function startLongWorker {
+    ${LONG} localhost:${PORT} 2> /dev/null &
+	LONG_PID=$!
+}
+
+function waitLongWorker {
+    wait ${LONG_PID} 2> /dev/null
 }
 
 function startWorkers {
@@ -216,6 +227,17 @@ function testEvilWorkers {
 	stopServer
 }
 
+function testTimeout {
+	echo "Testing: worker timeout"
+	startServer
+	startRequests 1
+	startLongWorker
+	waitLongWorker
+	startWorkers 10 0
+	testResults 1
+	stopServer
+}
+
 # Run tests
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -235,6 +257,7 @@ testTenBadWorkers
 testHundredTerribleWorkers
 testMixedWorkers
 testEvilWorkers
+testTimeout
 
 rm -rf ${INPUT}
 echo "Passed (${PASS_COUNT}/$((PASS_COUNT + FAIL_COUNT))) tests"

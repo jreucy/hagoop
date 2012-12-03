@@ -112,6 +112,7 @@ func (server *mrServer) eventHandler() {
 			server.scheduleJobs()
 		case worker := <-server.workerReady:
 			worker.job = nil
+			worker.conn.SetDeadline(time.Time{})
 			server.workers[worker.id] = worker
 			server.scheduleJobs()
 		case id := <-server.workerDied:
@@ -170,9 +171,8 @@ func (server *mrServer) workerHandler(worker *Worker) {
 		err := mrlib.Read(worker.conn, &answer)
 		if err != nil {
 			log.Println("Read error: Worker", worker.id, "died")
+			worker.conn.Close()
 			server.workerDied <- worker.id
-			// Reassign current job
-			// Remove from worker map
 			return
 		}
 		server.responseChan <- answer
@@ -277,7 +277,9 @@ func (server *mrServer) scheduleJobs() {
 		}
 		if w.job == nil {
 			job := server.combineJobs(w)
-			err := mrlib.Write(w.conn, job)
+			err := w.conn.SetDeadline(time.Now().Add(time.Duration(5) * time.Second))
+			if err != nil { log.Println(err) }
+			err = mrlib.Write(w.conn, job)
 			if err != nil {
 				// Write didn't work. Add job back into queue
 				log.Println("Write Error: Worker", id, "died")

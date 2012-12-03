@@ -54,7 +54,7 @@ func main() {
 		}
 
 		// determine the length of the file
-		for startLine != endLine - 1 {
+		for startLine != endLine {
 			line, _ := fileBuf.ReadString('\n')
 			keyVal := unpack(line)
 			_, ok := preMap[keyVal[0]]

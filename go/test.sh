@@ -1,10 +1,12 @@
 #!/bin/bash
 cd ..
+make clean > /dev/null
 make > /dev/null
 cd - > /dev/null
 
 # Set variables
-LINES=500
+# Pick random line num between [500, 10000)
+LINES=$(((RANDOM % 500) + 500))
 INPUT="wc.txt"
 
 touch ${INPUT}
@@ -77,13 +79,13 @@ function startWorkers {
 	N=$1
     for i in `seq 0 $((N-1))`
     do
-        ${WORKER} localhost:${PORT} 2> /dev/null &
+        ${WORKER} localhost:${PORT} &
         WORKER_PID[$i]=$!
     done
 }
 
 function stopWorkers {
-	N=${#WORKER_PID[@]}
+	N=$1
     for i in `seq 0 $((N-1))`
     do
         kill -9 ${WORKER_PID[$i]}
@@ -91,45 +93,97 @@ function stopWorkers {
     done
 }
 
-function startRequest {
-    ${REQUEST} localhost:${PORT} ${INPUT} ${OUTPUT} ${MAIN} > /dev/null
-    PASS=`cat ${OUTPUT} | grep ${LINES} | wc -l`
-    if [ "$PASS" -eq 3 ]
+function startRequests {
+	N=$1
+    for i in `seq 0 $((N-1))`
+    do
+        ${REQUEST} localhost:${PORT} ${INPUT} ${OUTPUT}:${i} ${MAIN} > /dev/null &
+        REQUEST_PID[$i]=$!
+    done
+}
+
+function testResults {
+	N=$1
+	PASSED=0
+	for i in `seq 0 $((N-1))`
+    do
+    	wait ${REQUEST_PID[$i]} 2> /dev/null
+        PASS=`cat ${OUTPUT}:$i | grep ${LINES} | wc -l`
+	    if [ "$PASS" -eq 3 ]
+	    then
+	    	PASSED=$((PASSED + 1))
+	   	fi
+	    rm -rf ${OUTPUT}:$i
+    done
+    if [ "$PASSED" -eq $N ]
     then
-        echo "PASS"
+    	echo "PASS"
         PASS_COUNT=$((PASS_COUNT + 1))
     else
         echo "FAIL"
         FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
-    rm -rf ${OUTPUT}
 }
 
 function testOneWorkerOneRequest {
 	echo "Testing: 1 worker then 1 request"
-	sleep 1
 	startServer
 	startWorkers 1
-	startRequest
-	stopWorkers
-	stopServer
+	startRequests 1
+	testResults 1
+	stopWorkers 1
+	stopServer	
 }
 
 function testThreeWorkerOneRequest {
 	echo "Testing: 3 workers then 1 request"
-	sleep 1
 	startServer
 	startWorkers 3
-	startRequest
-	stopWorkers
+	startRequests 1
+	testResults 1
+	stopWorkers 3
+	stopServer
+}
+
+function testOneRequestOneWorker {
+	echo "Testing: 1 request then 1 worker"
+	startServer
+	startRequests 1
+	startWorkers 1
+	testResults 1
+	stopWorkers 1
+	stopServer
+}
+
+function testOneRequestThreeWorker {
+	echo "Testing: 1 request then 3 workers"
+	startServer
+	startRequests 1
+	startWorkers 3
+	testResults 1
+	stopWorkers 3
+	stopServer
+}
+
+function testThreeWorkerThreeRequest {
+	echo "Testing: 3 workers then 3 requests"
+	startServer
+	startWorkers 3
+	startRequests 3
+	testResults 3
+	stopWorkers 3
 	stopServer
 }
 
 # Run tests
 PASS_COUNT=0
 FAIL_COUNT=0
+echo "Running tests with input file of length $((LINES * 3))"
 testOneWorkerOneRequest
 testThreeWorkerOneRequest
+testOneRequestOneWorker
+testOneRequestThreeWorker
+testThreeWorkerThreeRequest
 
 rm -rf ${INPUT}
 echo "Passed (${PASS_COUNT}/$((PASS_COUNT + FAIL_COUNT))) tests"

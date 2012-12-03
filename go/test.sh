@@ -279,11 +279,11 @@ function testStress {
 	startWorkers 10 0
 	startEvilWorkers 10 
 	startDeadWorkers 10
-	startRequests 5
+	startRequests 2
 	echo "Started 3 requests"
 	sleep 1
 	startWorkers 10 0
-	testResults 5
+	testResults 2
 	stopServer
 }
 
@@ -310,7 +310,7 @@ testEvilWorkers
 testTimeoutLongWorker
 testTimeoutInfWorker
 echo ""
-LINES=$(((RANDOM % 50000) + 50000))
+LINES=$(((RANDOM % 500000) + 500000))
 echo "Running tests with input directory of ${LINES} lines"
 echo "Creating directory..."
 makeInput

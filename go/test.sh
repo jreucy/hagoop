@@ -280,10 +280,15 @@ function testStress {
 	startEvilWorkers 10 
 	startDeadWorkers 10
 	startRequests 2
-	echo "Started 2 requests"
 	sleep 1
 	startWorkers 10 0
-	testResults 2
+	startWorkers 20 50
+	startWorkers 10 25
+	startWorkers 30 70
+	REQS=2
+	startRequests 3
+	startWorkers 10 10
+	testResults 5
 	stopServer
 }
 

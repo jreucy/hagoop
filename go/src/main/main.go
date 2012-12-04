@@ -14,8 +14,8 @@ func unpack(keyVal string) []string {
 }
 
 func main() {
-	// ./main [map/reduce] [file] [start] [end]
-	if len(os.Args) != 5 { return }
+	// ./main [map/reduce] [file] [start] [end] [offset]
+	if len(os.Args) != 6 { return }
 
 	var c client.Client
 	c = client.New()
@@ -24,14 +24,18 @@ func main() {
 	case "map":
 		file, err := os.Open(os.Args[2])
 		if err != nil { log.Fatal(err) }
-		fileBuf := bufio.NewReader(file)
+		
 	
 		startLine, _ := strconv.Atoi(os.Args[3])
 		endLine, _ := strconv.Atoi(os.Args[4])
+		offset, _ := strconv.ParseInt(os.Args[5], 10, 64)
 
-		for i := 0; i < startLine; i++ {
-			fileBuf.ReadString('\n')
+		_, err = file.Seek(offset, 0)
+		if err != nil {
+			log.Fatal(err)
 		}
+
+		fileBuf := bufio.NewReader(file)
 
 		for startLine != endLine {
 			line, _ := fileBuf.ReadString('\n')
@@ -44,15 +48,18 @@ func main() {
 
 		file, err := os.Open(os.Args[2])
 		if err != nil { log.Fatal(err) }
-		fileBuf := bufio.NewReader(file)
+		// fileBuf := bufio.NewReader(file)
 	
 		startLine, _ := strconv.Atoi(os.Args[3])
 		endLine, _ := strconv.Atoi(os.Args[4])
+		offset, _ := strconv.ParseInt(os.Args[5], 10, 64)
 
-		for i := 0; i < startLine; i++ {
-			fileBuf.ReadString('\n')
+		_, err = file.Seek(offset, 0)
+		if err != nil {
+			log.Fatal(err)
 		}
 
+		fileBuf := bufio.NewReader(file)
 		// determine the length of the file
 		for startLine != endLine {
 			line, _ := fileBuf.ReadString('\n')

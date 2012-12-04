@@ -61,7 +61,7 @@ func main() {
 				firstRange := ranges[i] 
 				startLine := firstRange.StartLine
 				endLine := firstRange.EndLine
-				cmd := exec.Command(request.BinaryFile, mrlib.MAP,  request.FileName, strconv.Itoa(startLine), strconv.Itoa(endLine))
+				cmd := exec.Command(request.BinaryFile, mrlib.MAP,  request.FileName, strconv.Itoa(startLine), strconv.Itoa(endLine), strconv.FormatInt(firstRange.Offset, 10))
 				cmd.Stdout = &out 
 				err := cmd.Start()	
 				if err != nil { log.Fatal("Worker: ", err) }
@@ -81,7 +81,7 @@ func main() {
 				firstRange := ranges[i] // assumes single chunk, put in for loop later
 				startLine := firstRange.StartLine
 				endLine := firstRange.EndLine
-				cmd := exec.Command(request.BinaryFile, mrlib.REDUCE,  request.FileName, strconv.Itoa(startLine), strconv.Itoa(endLine))
+				cmd := exec.Command(request.BinaryFile, mrlib.REDUCE,  request.FileName, strconv.Itoa(startLine), strconv.Itoa(endLine), strconv.FormatInt(firstRange.Offset, 10))
 				cmd.Stdout = &out 
 				err := cmd.Start() 
 				if err != nil {

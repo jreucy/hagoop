@@ -126,36 +126,38 @@ func (server *mrServer) eventHandler() {
 			server.scheduleJobs()
 		case answer := <-server.responseChan:
 			size := answer.JobSize
+			id := answer.RequestId
 			if answer.MsgType == mrlib.MsgMAPANSWER {
-				f, err := os.OpenFile(server.requests[answer.RequestId].mapFile, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0666)
+				f, _ := os.OpenFile(server.requests[id].mapFile, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0666)
 				f.WriteString(answer.Answer)
 				f.Close()
-				server.requests[answer.RequestId].mapDone += size
+				server.requests[id].mapDone += size
 					// If all maps done, add requests to queue, sort file
-				if server.requests[answer.RequestId].mapDone >= server.requests[answer.RequestId].mapJobs {
-					cmd := exec.Command("sort", server.requests[answer.RequestId].mapFile)
-					var out bytes.Buffer 
-					cmd.Stdout = &out 
-					err = cmd.Start()	
-					if err != nil {
-						log.Fatal("Sorting error: ", err)
-					}
-					err = cmd.Wait()
-					f, _ := os.OpenFile(server.requests[answer.RequestId].mapFile, os.O_WRONLY, 0666)
-					f.WriteString(out.String())
-					f.Close()
-					server.addJobs(answer.RequestId)
+				if server.requests[id].mapDone >= server.requests[id].mapJobs {
+					sortFile(server.requests[id].mapFile)
+					server.addJobs(id)
 				}				
 			} else {
-				f, _ := os.OpenFile(server.requests[answer.RequestId].output, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0666)
+				f, _ := os.OpenFile(server.requests[id].output, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0666)
 				f.WriteString(answer.Answer)
 				f.Close()
-				server.requests[answer.RequestId].reduceDone += size
-				if server.requests[answer.RequestId].reduceDone >= server.requests[answer.RequestId].reduceJobs {
-					// If request done, remove map file, then output answer
-					os.Remove(server.requests[answer.RequestId].mapFile)
-					done := mrlib.MrAnswerPacket{mrlib.MsgSUCCESS}
-					mrlib.Write(server.requests[answer.RequestId].conn, done)
+				server.requests[id].reduceDone += size
+				if server.requests[id].reduceDone >= server.requests[id].reduceJobs {
+					sortFile(server.requests[id].output)
+					if uniqueKeys(server.requests[id].output) {
+						os.Remove(server.requests[id].mapFile)
+						done := mrlib.MrAnswerPacket{mrlib.MsgSUCCESS}
+						mrlib.Write(server.requests[id].conn, done)
+					} else {
+						cmd := exec.Command("mv", server.requests[id].output, server.requests[id].mapFile)
+						err := cmd.Run()	
+						if err != nil {
+							log.Fatal("Copy error: ", err)
+						}
+						server.requests[id].reduceDone = 0
+						server.requests[id].reduceJobs = 0
+						server.addJobs(id)
+					}
 				}
 			} 
 		}
@@ -242,7 +244,7 @@ func (server *mrServer) addDir(id uint, dirName string) {
 			server.addDir(id, dirName + "/" + files[f].Name())
 		}
 		lines := countLines(dirName + "/" + files[f].Name())
-		chunks := splitMapJob(lines)
+		chunks := splitMapJob(lines, dirName + "/" + files[f].Name())
 		for i := 0; i < len(chunks); i++ {
 			job := &mrlib.ServerRequestPacket{}
 			job.MsgType = mrlib.MsgMAPREQUEST
@@ -333,19 +335,37 @@ func (server *mrServer) combineJobs(worker *Worker) *mrlib.ServerRequestPacket {
 	return firstJob
 }
 
-func splitMapJob(numLines int) []mrlib.MrChunk {
+func splitMapJob(numLines int, fileName string) []mrlib.MrChunk {
 	// split into chunks based on min job size
 	numJobs := int(math.Ceil(float64(numLines)/float64(mrlib.MinJOBSIZE)))
 	chunks := make([]mrlib.MrChunk, numJobs)
+
+	file, err := os.Open(fileName)
+	if err != nil { }
+	fileBuf := bufio.NewReader(file)
+
+	offset := int64(0)
+	tmp := int64(0)
 	start := 0
-	end := mrlib.MinJOBSIZE - 1
-	for i := 0; i < numJobs; i++ {
-		if end > numLines {
-			end = numLines
+	end := 0
+	i := 0
+	err = nil
+	for err == nil {
+		line, err := fileBuf.ReadString('\n')
+		tmp += int64(len(line))
+		end++
+		if err != nil {
+			chunks[i] = mrlib.MrChunk{start, end, offset}
+			break
 		}
-		chunks[i] = mrlib.MrChunk{start, end}
-		start = end
-		end += mrlib.MinJOBSIZE
+		if (end - start) == mrlib.MinJOBSIZE {
+			chunks[i] = mrlib.MrChunk{start, end, offset}
+			start = end
+			i++
+			offset += tmp
+			tmp = int64(0)
+		}
+		
 	}
 	return chunks
 }
@@ -361,6 +381,8 @@ func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 	
 	// loop through file, finding number of unique keys
 	// save start and end lines of each unique key
+	offset := int64(0)
+	tmp := int64(0)
 	i := 1
 	numDiffKeys := 0
 	keyStart := 0
@@ -370,8 +392,9 @@ func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 	err = nil
 	for err == nil {
 		keyArr, err := fileBuf.ReadString('\n')
+		tmp += int64(len(keyArr))
 		if err != nil { 
-			chunks[numDiffKeys] = mrlib.MrChunk{keyStart, i}	
+			chunks[numDiffKeys] = mrlib.MrChunk{keyStart, i, offset}	
 			numDiffKeys++
 			break 
 		}
@@ -382,9 +405,11 @@ func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 			firstKey = key
 			if i - keyStart >= mrlib.MinJOBSIZE {
 				keyEnd = i
-				chunks[numDiffKeys] = mrlib.MrChunk{keyStart, keyEnd}
+				chunks[numDiffKeys] = mrlib.MrChunk{keyStart, keyEnd, offset}
 				keyStart = keyEnd
 				numDiffKeys++
+				offset += tmp
+				tmp = int64(0)
 			}
 		}
 		i++
@@ -392,6 +417,37 @@ func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 
 	// Same keys have to be on same worker
 	return chunks[0:numDiffKeys]
+}
+
+func sortFile(fileName string) {
+	cmd := exec.Command("sort", fileName)
+	var out bytes.Buffer 
+	cmd.Stdout = &out 
+	err := cmd.Start()	
+	if err != nil {
+		log.Fatal("Sorting error: ", err)
+	}
+	err = cmd.Wait()
+	f, _ := os.OpenFile(fileName, os.O_WRONLY, 0666)
+	f.WriteString(out.String())
+	f.Close()
+}
+
+func uniqueKeys(fileName string) bool {
+	file, _ := os.Open(fileName)
+	fileBuf := bufio.NewReader(file)
+
+	line, err := fileBuf.ReadString('\n')
+	firstKey := mrlib.GetKey(line)
+	for err == nil {
+		line, err = fileBuf.ReadString('\n')
+		key := mrlib.GetKey(line)
+		if firstKey == key {
+			return false
+		}
+		firstKey = key
+	}
+	return true
 }
 
 func countLines(fileName string) int {

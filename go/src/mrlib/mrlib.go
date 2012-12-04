@@ -45,6 +45,7 @@ type MrJob struct {
 type MrChunk struct {
 	StartLine int
 	EndLine int
+	Offset int64
 }
 
 func Write(conn *net.TCPConn, msg interface{}) error {

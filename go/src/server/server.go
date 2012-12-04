@@ -359,7 +359,7 @@ func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 	// loop through file, finding number of unique keys
 	// save start and end lines of each unique key
 	i := 1
-	numUniqueKeys := 0
+	numDiffKeys := 0
 	keyStart := 0
 	keyEnd := 0
 	firstKeyArr, err := fileBuf.ReadString('\n')
@@ -368,27 +368,27 @@ func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 	for err == nil {
 		keyArr, err := fileBuf.ReadString('\n')
 		if err != nil { 
-			chunks[numUniqueKeys] = mrlib.MrChunk{keyStart, i}	
-			numUniqueKeys++
+			chunks[numDiffKeys] = mrlib.MrChunk{keyStart, i}	
+			numDiffKeys++
 			break 
 		}
 		key := mrlib.GetKey(keyArr)
 
-		if key != firstKey {
+		if (key != firstKey) || (i - keyStart >= (mrlib.MinJOBSIZE * mrlib.MaxJOBNUM)) {
 
 			firstKey = key
 			if i - keyStart >= mrlib.MinJOBSIZE {
 				keyEnd = i
-				chunks[numUniqueKeys] = mrlib.MrChunk{keyStart, keyEnd}
+				chunks[numDiffKeys] = mrlib.MrChunk{keyStart, keyEnd}
 				keyStart = keyEnd
-				numUniqueKeys++
+				numDiffKeys++
 			}
 		}
 		i++
 	}
 
 	// Same keys have to be on same worker
-	return chunks[0:numUniqueKeys]
+	return chunks[0:numDiffKeys]
 }
 
 func countLines(fileName string) int {

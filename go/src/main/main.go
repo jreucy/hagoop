@@ -1,12 +1,12 @@
 package main
 
 import (
-	"os"
-	"bufio"
+	"../client"
 	"strings"
 	"strconv"
-	"../client"
+	"bufio"
 	"log"
+	"os"
 )
 
 func unpack(keyVal string) []string {
@@ -14,29 +14,25 @@ func unpack(keyVal string) []string {
 }
 
 func main() {
-	// ./main [map/reduce] [file] [start] [end] [offset]
 	if len(os.Args) != 6 { return }
 
 	var c client.Client
 	c = client.New()
 
+	file, err := os.Open(os.Args[2])
+	if err != nil { log.Fatal("main : ", err) }
+	startLine, err := strconv.Atoi(os.Args[3])
+	if err != nil { log.Fatal("main : ", err) }
+	endLine, err := strconv.Atoi(os.Args[4])
+	if err != nil { log.Fatal("main : ", err) }
+	offset, err := strconv.ParseInt(os.Args[5], 10, 64)
+	if err != nil { log.Fatal("main : ", err) }
+	_, err = file.Seek(offset, 0)
+	if err != nil { log.Fatal("main : ", err) }
+
 	switch os.Args[1] {
 	case "map":
-		file, err := os.Open(os.Args[2])
-		if err != nil { log.Fatal(err) }
-		
-	
-		startLine, _ := strconv.Atoi(os.Args[3])
-		endLine, _ := strconv.Atoi(os.Args[4])
-		offset, _ := strconv.ParseInt(os.Args[5], 10, 64)
-
-		_, err = file.Seek(offset, 0)
-		if err != nil {
-			log.Fatal(err)
-		}
-
 		fileBuf := bufio.NewReader(file)
-
 		for startLine != endLine {
 			line, _ := fileBuf.ReadString('\n')
 			c.Map(strings.TrimSpace(line))
@@ -45,19 +41,6 @@ func main() {
 	case "reduce":
 		preMap := make(map[string]string)
 		keyValues := make(map[string][]string)
-
-		file, err := os.Open(os.Args[2])
-		if err != nil { log.Fatal(err) }
-		// fileBuf := bufio.NewReader(file)
-	
-		startLine, _ := strconv.Atoi(os.Args[3])
-		endLine, _ := strconv.Atoi(os.Args[4])
-		offset, _ := strconv.ParseInt(os.Args[5], 10, 64)
-
-		_, err = file.Seek(offset, 0)
-		if err != nil {
-			log.Fatal(err)
-		}
 
 		fileBuf := bufio.NewReader(file)
 		// determine the length of the file
@@ -72,7 +55,7 @@ func main() {
 			}
 			startLine++
 		}
-
+		
 		for i, v := range preMap {
 			keyValues[i] = strings.Split(v, " ")
 		}

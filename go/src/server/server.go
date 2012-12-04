@@ -2,17 +2,17 @@ package main
 
 import (
 	"container/list"
+	"io/ioutil"
 	"strconv"
+	"os/exec"
 	"mrlib"
 	"bufio"
-	"net"
-	"os"
-	"os/exec"
-	"log"
 	"bytes"
 	"math"
 	"time"
-	"io/ioutil"
+	"net"
+	"log"
+	"os"
 )
 
 type Request struct {
@@ -49,25 +49,24 @@ type mrServer struct {
 
 func main() {
 
-	// "./server port"
 	if len(os.Args) != 2 { return }
 
 	port := os.Args[1]
 
-	// make sure port is an integer
 	_ , err := strconv.Atoi(port)
-	if err != nil { /* do something */ }
+	if err != nil { log.Fatal("server: ", err) }
 
-	// connect to server with TCP
+	// create a TCP listener to receive worker and request client connections
 	laddr := ":" + port
 	serverAddr, err := net.ResolveTCPAddr(mrlib.TCP, laddr)
-	if err != nil { log.Fatal(err) }
+	if err != nil { log.Fatal("server: ", err) }
 	serverListener, err := net.ListenTCP(mrlib.TCP, serverAddr)
-	if err != nil { log.Fatal(err) }
+	if err != nil { log.Fatal("server: ", err) }
 
 	server := newServer(serverListener)
+
 	go server.connectionHandler()
-	server.eventHandler() // convert to go routine
+	server.eventHandler()
 }
 
 func newServer(serverListener *net.TCPListener) *mrServer {
@@ -83,13 +82,13 @@ func newServer(serverListener *net.TCPListener) *mrServer {
 	return server
 }
 
+// Continuously reads for new incoming TCP connections
+// Spins off worker or request handler after identification
 func (server *mrServer) connectionHandler() {
-	// only 2 iterations right now because 1 request/ 1 worker
-	// later change to loop forever
 	id := uint(1)
 	for {
 		conn, err := server.connListener.AcceptTCP()
-		if err != nil { log.Fatal(err) }
+		if err != nil { log.Fatal("server: ", err) }
 		var identifyPacket mrlib.IdentifyPacket
 		mrlib.Read(conn, &identifyPacket)
 		switch (identifyPacket.MsgType) {
@@ -107,6 +106,59 @@ func (server *mrServer) connectionHandler() {
 	}
 }
 
+// Writes requests to workers and reads answers
+// If worker doesn't respond by deadline, close connection
+func (server *mrServer) workerHandler(worker *Worker) {
+	log.Println("Worker joined with id:", worker.id)
+	var answer mrlib.WorkerAnswerPacket
+	for {
+		job := <- worker.writeChan
+		mrlib.Write(worker.conn, job)
+		worker.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		// Only read when we expect an answer
+		// If the worker unexpectedly closes when we're not reading, read will throw an error
+		err := mrlib.Read(worker.conn, &answer)
+		if err != nil {
+			log.Println("Read error: Worker", worker.id, "died")
+			worker.conn.SetLinger(0)
+			worker.conn.Close()
+			server.workerDied <- worker.id
+			return
+		}
+		server.responseChan <- answer
+		server.workerReady <- worker
+	}
+	return
+}
+
+// Reads in requests from request clients
+func (server *mrServer) requestHandler(id uint, conn *net.TCPConn) {
+	log.Println("Request received with id:", id)
+	accept := mrlib.MrAnswerPacket{mrlib.MsgSUCCESS}
+	// Accept connection before reading request
+	err := mrlib.Write(conn, accept)
+	if err != nil {
+		log.Println("Write Error: Request", id, "died")
+		return
+	}
+	var packet mrlib.MrRequestPacket
+	// Read in mapreduce request
+	err = mrlib.Read(conn, &packet)
+	if err != nil {
+		log.Println("Read Error: Request", id, "died")
+		return
+	}
+	request := server.requests[id]
+	request.binary = packet.BinaryFile
+	request.input = packet.Directory
+	request.mapFile = ".mapFile" + strconv.FormatUint(uint64(id), 10)
+	request.output = packet.AnswerFileName
+	server.requests[id] = request
+	server.requestJoin <- id
+	return
+}
+
+// performs the actions sequentially to avoid race conditions
 func (server *mrServer) eventHandler() {
 	for {
 		select {
@@ -127,29 +179,35 @@ func (server *mrServer) eventHandler() {
 		case answer := <-server.responseChan:
 			size := answer.JobSize
 			id := answer.RequestId
-			if answer.MsgType == mrlib.MsgMAPANSWER {
-				f, _ := os.OpenFile(server.requests[id].mapFile, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0666)
+			request := server.requests[id]
+			switch (answer.MsgType) {
+			case mrlib.MsgMAPANSWER:
+				// Write all map answers to file
+				f, _ := os.OpenFile(request.mapFile, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0666)
 				f.WriteString(answer.Answer)
 				f.Close()
-				server.requests[id].mapDone += size
-					// If all maps done, add requests to queue, sort file
-				if server.requests[id].mapDone >= server.requests[id].mapJobs {
-					sortFile(server.requests[id].mapFile)
+				request.mapDone += size
+				// If all maps done, sorts the mapfile and adds requests to queue
+				if request.mapDone >= request.mapJobs {
+					sortFile(request.mapFile)
 					server.addJobs(id)
-				}				
-			} else {
-				f, _ := os.OpenFile(server.requests[id].output, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0666)
+				}
+			case mrlib.MsgREDUCEANSWER:
+				// Write all reduce answers to file
+				f, _ := os.OpenFile(request.output, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0666)
 				f.WriteString(answer.Answer)
 				f.Close()
-				server.requests[id].reduceDone += size
-				if server.requests[id].reduceDone >= server.requests[id].reduceJobs {
-					sortFile(server.requests[id].output)
-					if uniqueKeys(server.requests[id].output) {
-						os.Remove(server.requests[id].mapFile)
+				request.reduceDone += size
+				if request.reduceDone >= request.reduceJobs {
+					sortFile(request.output)
+					// No duplicate keys implies final reduction
+					if uniqueKeys(request.output) {
+						os.Remove(request.mapFile)
 						done := mrlib.MrAnswerPacket{mrlib.MsgSUCCESS}
-						mrlib.Write(server.requests[id].conn, done)
+						mrlib.Write(request.conn, done)
+					// Otherwise, we must go through another round of reduce
 					} else {
-						cmd := exec.Command("mv", server.requests[id].output, server.requests[id].mapFile)
+						cmd := exec.Command("mv", request.output, server.requests[id].mapFile)
 						err := cmd.Run()	
 						if err != nil {
 							log.Fatal("Copy error: ", err)
@@ -164,66 +222,10 @@ func (server *mrServer) eventHandler() {
 	}
 }
 
-// reads in answers from worker clients
-func (server *mrServer) workerHandler(worker *Worker) {
-
-	log.Println("Worker joined with id:", worker.id)
-
-	var answer mrlib.WorkerAnswerPacket
-
-	for {
-		job := <- worker.writeChan
-		mrlib.Write(worker.conn, job)
-		worker.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		err := mrlib.Read(worker.conn, &answer)
-		if err != nil {
-			log.Println("Read error: Worker", worker.id, "died")
-			worker.conn.SetLinger(0)
-			worker.conn.Close()
-			server.workerDied <- worker.id
-			return
-		}
-		server.responseChan <- answer
-		server.workerReady <- worker
-	}
-
-	return
-}
-
-// reads in requests from request clients
-func (server *mrServer) requestHandler(id uint, conn *net.TCPConn) {
-
-	log.Println("Request received with id:", id)
-
-	accept := mrlib.MrAnswerPacket{mrlib.MsgSUCCESS}
-	err := mrlib.Write(conn, accept)
-	if err != nil {
-		log.Println("Write Error: Request", id, "died")
-		return
-	}
-
-	var packet mrlib.MrRequestPacket
-	err = mrlib.Read(conn, &packet)
-	if err != nil {
-		log.Println("Read Error: Request", id, "died")
-		return
-	}
-
-	request := server.requests[id]
-	request.binary = packet.BinaryFile
-	request.input = packet.Directory
-	request.mapFile = ".mapFile" + strconv.FormatUint(uint64(id), 10)
-	request.output = packet.AnswerFileName
-
-	server.requests[id] = request
-
-	server.requestJoin <- id
-	return
-}
-
+// Splits a combined job into pieces of minimum size and places them into queue
+// Called when a worker holding a job dies
 func (server *mrServer) splitFailedJob(job *mrlib.ServerRequestPacket) {
 	ranges := job.Ranges
-
 	for i := 0; i < len(ranges); i++ {
 		newServerRequest := &mrlib.ServerRequestPacket{}
 		newServerRequest.MsgType = job.MsgType
@@ -236,31 +238,7 @@ func (server *mrServer) splitFailedJob(job *mrlib.ServerRequestPacket) {
 	}
 }
 
-func (server *mrServer) addDir(id uint, dirName string) {
-	request := server.requests[id]
-	files, _ := ioutil.ReadDir(dirName)
-	for f := 0; f < len(files); f++ {
-		if files[f].IsDir() {
-			server.addDir(id, dirName + "/" + files[f].Name())
-		}
-		lines := countLines(dirName + "/" + files[f].Name())
-		chunks := splitMapJob(lines, dirName + "/" + files[f].Name())
-		for i := 0; i < len(chunks); i++ {
-			job := &mrlib.ServerRequestPacket{}
-			job.MsgType = mrlib.MsgMAPREQUEST
-			job.FileName = dirName + "/" + files[f].Name()
-			job.BinaryFile = request.binary
-			job.Ranges = []mrlib.MrChunk{chunks[i]}
-			job.RequestId = id
-			job.JobSize = uint(1)
-
-			server.queue.PushBack(job)
-		}
-
-		request.mapJobs += uint(len(chunks))
-	}
-}
-
+// creates map and reduce jobs for a specific request and adds to queue
 func (server *mrServer) addJobs(id uint) {
 	request := server.requests[id]
 	// Have not added map jobs for this request yet
@@ -288,6 +266,32 @@ func (server *mrServer) addJobs(id uint) {
 	}
 }
 
+// Recursively looks through directories, creates map jobs from all files, places into queue
+func (server *mrServer) addDir(id uint, dirName string) {
+	request := server.requests[id]
+	files, _ := ioutil.ReadDir(dirName)
+	for f := 0; f < len(files); f++ {
+		if files[f].IsDir() {
+			server.addDir(id, dirName + "/" + files[f].Name())
+		}
+		lines := countLines(dirName + "/" + files[f].Name())
+		chunks := splitMapJob(lines, dirName + "/" + files[f].Name())
+		for i := 0; i < len(chunks); i++ {
+			job := &mrlib.ServerRequestPacket{}
+			job.MsgType = mrlib.MsgMAPREQUEST
+			job.FileName = dirName + "/" + files[f].Name()
+			job.BinaryFile = request.binary
+			job.Ranges = []mrlib.MrChunk{chunks[i]}
+			job.RequestId = id
+			job.JobSize = uint(1)
+
+			server.queue.PushBack(job)
+		}
+		request.mapJobs += uint(len(chunks))
+	}
+}
+
+// Creates a job and sends to worker
 func (server *mrServer) scheduleJobs() {
 	for id, w := range(server.workers) {
 		if server.queue.Len() <= 0 {
@@ -303,6 +307,8 @@ func (server *mrServer) scheduleJobs() {
 	}		
 }
 
+// Iterates through queue and combines smaller jobs into mega jobs 
+// Mega jobs have different sizes based on worker life and reliability
 func (server *mrServer) combineJobs(worker *Worker) *mrlib.ServerRequestPacket {
 	workerLife := uint(time.Now().Sub(worker.joinTime) / (1 * time.Second))
 	workerReliability := worker.numJobsCompleted
@@ -335,6 +341,7 @@ func (server *mrServer) combineJobs(worker *Worker) *mrlib.ServerRequestPacket {
 	return firstJob
 }
 
+// Splits lines of file into individual map jobs
 func splitMapJob(numLines int, fileName string) []mrlib.MrChunk {
 	// split into chunks based on min job size
 	numJobs := int(math.Ceil(float64(numLines)/float64(mrlib.MinJOBSIZE)))
@@ -370,6 +377,8 @@ func splitMapJob(numLines int, fileName string) []mrlib.MrChunk {
 	return chunks
 }
 
+// Splits lines of file into individual reduce jobs
+// Groups similar keys
 func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 
 	maxJobs := int(math.Ceil(float64(numLines)/float64(mrlib.MinJOBSIZE)))

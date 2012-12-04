@@ -3,18 +3,13 @@ package main
 import (
 	"mrlib"
 	"net"
-	"os"
 	"log"
 	"fmt"
-)
-
-const (
-	MaxMESSAGESIZE = 10000 // change later
+	"os"
 )
 
 func main() {
 
-	// "./request host:port [file_directory] [file_name] [binary_name]"
 	if len(os.Args) != 5 { return }
 
 	hostport := os.Args[1]
@@ -22,19 +17,16 @@ func main() {
 	answerFileName := os.Args[3]
 	binaryName := os.Args[4]
 
-	// connect to server with TCP
+	// connect to server with TCP as request client
 	serverAddr, err := net.ResolveTCPAddr(mrlib.TCP, hostport)
-	if err != nil { /* do something */ }
-	conn, err := net.DialTCP(mrlib.TCP, nil, serverAddr) // maybe change nil to something
-	if err != nil { /* do something */ }
-
-	// identify as request client
+	if err != nil { log.Fatal("Request: ", err) }
+	conn, err := net.DialTCP(mrlib.TCP, nil, serverAddr)
+	if err != nil { log.Fatal("Request: ", err) }
 	identifyPacket := mrlib.IdentifyPacket{mrlib.MsgREQUESTCLIENT}
 	mrlib.Write(conn, identifyPacket)
 
 	var acceptPacket mrlib.MrAnswerPacket
 	mrlib.Read(conn, &acceptPacket)
-
 	if acceptPacket.MsgType != mrlib.MsgSUCCESS { log.Fatal("Request not accepted") }
 
 	// create mapreduce request and write to server
@@ -45,13 +37,12 @@ func main() {
 	var answer mrlib.MrAnswerPacket
 	mrlib.Read(conn, &answer)
 
-	// get message from byte_msg and print to command-line
 	switch (answer.MsgType) {
 	case mrlib.MsgSUCCESS:
 		fmt.Println("Success! Result saved in", answerFileName)
 		return
 	case mrlib.MsgFAIL:
-		// fmt.Println("MapReduce failed")
+		fmt.Println("MapReduce failed")
 		return
 	}
 	conn.Close()

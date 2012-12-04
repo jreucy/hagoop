@@ -6,7 +6,6 @@ import (
 	"net"
 )
 
-
 type IdentifyPacket struct {
 	MsgType int
 }
@@ -82,7 +81,7 @@ const (
 	TCP = "tcp"
 	MAP = "map"
 	REDUCE = "reduce"
-	MaxMESSAGESIZE = 1000000 // change later
+	MaxMESSAGESIZE = 1000000
 	MinJOBSIZE = 50 
 	MaxJOBNUM = 100
 	MsgREQUESTCLIENT = iota

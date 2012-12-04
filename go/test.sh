@@ -204,6 +204,8 @@ function testTenBadWorkers {
 	startWorkers 10 25
 	sleep .1
 	startRequests 1
+    sleep 3
+    startWorkers 1 0
 	testResults 1
 	stopServer
 }
@@ -213,6 +215,8 @@ function testHundredTerribleWorkers {
 	startServer
 	startWorkers 100 75
 	startRequests 1
+    sleep 3
+    startWorkers 1 0
 	testResults 1
 	stopServer
 }

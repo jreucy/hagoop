@@ -400,7 +400,7 @@ func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 		}
 		key := mrlib.GetKey(keyArr)
 
-		if (key != firstKey) || (i - keyStart >= (mrlib.MinJOBSIZE * mrlib.MaxJOBNUM)) {
+		if (key != firstKey) || (i - keyStart >= (mrlib.MinJOBSIZE * 2)) {
 
 			firstKey = key
 			if i - keyStart >= mrlib.MinJOBSIZE {

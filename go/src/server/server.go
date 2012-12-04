@@ -33,6 +33,7 @@ type Worker struct {
 	job *mrlib.ServerRequestPacket
 	joinTime time.Time
 	writeChan chan *mrlib.ServerRequestPacket
+	numJobsCompleted uint
 }
 
 type mrServer struct {
@@ -98,7 +99,7 @@ func (server *mrServer) connectionHandler() {
 			server.requests[id] = request
 			go server.requestHandler(id, conn)
 		case mrlib.MsgWORKERCLIENT:
-			worker := &Worker{id, conn, nil, time.Now(), make(chan *mrlib.ServerRequestPacket, 0)}
+			worker := &Worker{id, conn, nil, time.Now(), make(chan *mrlib.ServerRequestPacket, 0), 0}
 			server.workerReady <- worker
 			go server.workerHandler(worker)
 		}
@@ -294,14 +295,16 @@ func (server *mrServer) scheduleJobs() {
 			job := server.combineJobs(w)
 			w.writeChan <- job
 			w.job = job
+			w.numJobsCompleted += job.JobSize
 			server.workers[id] = w
 		}
 	}		
 }
 
 func (server *mrServer) combineJobs(worker *Worker) *mrlib.ServerRequestPacket {
-	workerLife := int(time.Now().Sub(worker.joinTime) / (1 * time.Second))
-	maxJobSize := mrlib.Min(workerLife, mrlib.MaxJOBNUM)
+	workerLife := uint(time.Now().Sub(worker.joinTime) / (1 * time.Second))
+	workerReliability := worker.numJobsCompleted
+	maxJobSize := mrlib.Min(int((workerLife + workerReliability) / 2), mrlib.MaxJOBNUM)
 	firstJob := server.queue.Remove(server.queue.Front()).(*mrlib.ServerRequestPacket)
 	jobsToRemove := make([]*list.Element, mrlib.MaxJOBNUM)
 	i := 0

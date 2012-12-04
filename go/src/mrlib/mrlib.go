@@ -76,7 +76,6 @@ func GetKey(line string) string {
 	return keyArr[0]
 }
 
-
 const (
 	Verbosity = 1
 	TCP = "tcp"

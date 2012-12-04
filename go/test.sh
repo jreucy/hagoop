@@ -112,8 +112,8 @@ function testResults {
 	for i in `seq 0 $((N-1))`
     do
     	wait ${REQUEST_PID[$i]} 2> /dev/null
-        PASS=`cat ${OUTPUT}:$i | grep $((LINES * 3)) | wc -l`
-	    if [ "$PASS" -eq 1 ]
+        PASS=`cat ${OUTPUT}:$i | grep ${LINES} | wc -l`
+	    if [ "$PASS" -eq 3 ]
 	    then
 	    	PASSED=$((PASSED + 1))
 	   	fi
@@ -280,7 +280,7 @@ function testStress {
 	startEvilWorkers 10 
 	startDeadWorkers 10
 	startRequests 2
-	echo "Started 3 requests"
+	echo "Started 2 requests"
 	sleep 1
 	startWorkers 10 0
 	testResults 2

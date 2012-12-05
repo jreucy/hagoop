@@ -223,6 +223,8 @@ func (server *mrServer) eventHandler() {
 				f.WriteString(answer.Answer)
 				f.Close()
 				request.mapDone += size
+				percent := math.Ceil((float64(request.mapDone) * 100) / float64(request.mapJobs))
+				log.Printf("Request %d: %d%% done with map", id, int(percent))
 				// If all maps done, sorts the mapfile and adds requests to queue
 				if request.mapDone >= request.mapJobs {
 					sortFile(request.mapFile)
@@ -234,6 +236,8 @@ func (server *mrServer) eventHandler() {
 				f.WriteString(answer.Answer)
 				f.Close()
 				request.reduceDone += size
+				percent := math.Ceil((float64(request.reduceDone) * 100) / float64(request.reduceJobs))
+				log.Printf("Request %d: %d%% done with reduce", id, int(percent))
 				if request.reduceDone >= request.reduceJobs {
 					sortFile(request.output)
 					// No duplicate keys implies final reduction

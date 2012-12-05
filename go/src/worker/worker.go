@@ -95,5 +95,11 @@ func logJob(request mrlib.ServerRequestPacket) {
 		endLine := r.EndLine
 		jobSize += endLine - startLine
 	}
-	log.Println("Worker : Job size = ", jobSize)
+	var msg string 
+	if request.MsgType == mrlib.MsgREDUCEREQUEST {
+		msg = "reduce"
+	} else {
+		msg = "map"
+	}
+	log.Println("Worker :", msg, "job size = ", jobSize)
 }

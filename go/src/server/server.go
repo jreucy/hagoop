@@ -1,3 +1,39 @@
+/* Server Architecture :
+ *   Map Phase : 
+ *     In the map phase, the server parses through the given directory to find
+ *     all the given files.  The individual lines of each file are divided into
+ *     small chunks and placed in the queue.  Workers accept map jobs and 
+ *     return the result of the mapping.  The server then writes the results to
+ *     temporary files.  After all the map jobs have completed, the reduce phase 
+ *     begins.
+ *   Reduce Phase :
+ *     In the reduce phase, we first sort the keys to group the same keys 
+ *     together.  The individual lines of the temporary file are then split up
+ *     into small chunks and placed into the queue.  The workers accept reduce
+ *     jobs are return the result back to the server, where the results are 
+ *     written to the given request's output file.  After all the reduces have
+ *     completed, the server checks if all the keys are unique.  If not, the 
+ *     server runs another round of reductions.  If so, the server returns the
+ *     answer to the request.
+ *   Scheduler :
+ *     Since we are expecting a range of workers with different failure rates,
+ *     we give workers different sized jobs based on their reliabilities.  
+ *     Currently, the metric for each worker is determined two factors: 
+ *       1.) how long the worker has been connected 
+ *       2.) how many jobs the worker has completed
+ *     This way, our more reliable workers are given bigger jobs.  We re-size 
+ *     jobs by first creating all mini jobs, then combining jobs of the same 
+ *     type by giving a range of line numbers for the worker to complete.
+ *   Robustness : 
+ *     We are expecting both workers and request clients to be entering and 
+ *     exiting our network at all times.  All workers are given a deadline to
+ *     complete their job.  If it cannot complete its job in time, the server
+ *     assumes that the worker has died or is too unreliable to use.  Thus,
+ *     the server will close the connection to the worker and put its job back
+ *     into the queue.  If its job was bigger than the minimum job size, the 
+ *     server will split the job back into mini-jobs before pushing back into 
+ *     the queue.
+ */
 package main
 
 import (
@@ -238,14 +274,14 @@ func (server *mrServer) splitFailedJob(job *mrlib.ServerRequestPacket) {
 	}
 }
 
-// creates map and reduce jobs for a specific request and adds to queue
+// Creates map and reduce jobs for a specific request and adds to queue
 func (server *mrServer) addJobs(id uint) {
 	request := server.requests[id]
-	// Have not added map jobs for this request yet
+	// Have not added map jobs for this request
 	if request.mapJobs == uint(0) {
 		server.addDir(id, request.input)
 
-	// Have not added reduce jobs for this request yet
+	// Have not added reduce jobs for this request 
 	} else if request.reduceJobs == uint(0) {
 		
 		lines := countLines(request.mapFile)
@@ -258,10 +294,8 @@ func (server *mrServer) addJobs(id uint) {
 			job.Ranges = []mrlib.MrChunk{chunks[i]}
 			job.RequestId = id
 			job.JobSize = uint(1)
-
 			server.queue.PushBack(job)
 		}
-
 		request.reduceJobs = uint(len(chunks))
 	}
 }
@@ -317,6 +351,7 @@ func (server *mrServer) combineJobs(worker *Worker) *mrlib.ServerRequestPacket {
 	jobsToRemove := make([]*list.Element, mrlib.MaxJOBNUM)
 	i := 0
 	numLines := firstJob.Ranges[0].EndLine  - firstJob.Ranges[0].StartLine
+	// Makes sure the number of jobs and lines is not over the limit
 	for job := server.queue.Front(); job != nil && i < maxJobSize && numLines < maxJobSize * mrlib.MinJOBSIZE; job = job.Next() {
 		j := job.Value.(*mrlib.ServerRequestPacket)
 		sameType := j.MsgType == firstJob.MsgType
@@ -334,6 +369,7 @@ func (server *mrServer) combineJobs(worker *Worker) *mrlib.ServerRequestPacket {
 		}
 	}
 
+	// Remove the combined jobs from the list
 	for x := 0; x < i; x++ {
 		server.queue.Remove(jobsToRemove[x])
 	}
@@ -357,6 +393,8 @@ func splitMapJob(numLines int, fileName string) []mrlib.MrChunk {
 	end := 0
 	i := 0
 	err = nil
+	// Read through lines and save the offset.
+	// This allows for quicker reading of large files (using seek)
 	for err == nil {
 		line, err := fileBuf.ReadString('\n')
 		tmp += int64(len(line))
@@ -409,8 +447,8 @@ func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 		}
 		key := mrlib.GetKey(keyArr)
 
+		// Creates jobs around the minimum size
 		if (key != firstKey) || (i - keyStart >= (mrlib.MinJOBSIZE * 2)) {
-
 			firstKey = key
 			if i - keyStart >= mrlib.MinJOBSIZE {
 				keyEnd = i
@@ -423,8 +461,6 @@ func splitReduceJob(numLines int, mapFile string) []mrlib.MrChunk {
 		}
 		i++
 	}
-
-	// Same keys have to be on same worker
 	return chunks[0:numDiffKeys]
 }
 

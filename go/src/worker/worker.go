@@ -45,6 +45,7 @@ func main() {
 		var request mrlib.ServerRequestPacket
 		err = mrlib.Read(conn, &request)
 		if err != nil { log.Fatal("Worker: ", err) }
+		logJob(request)
 		answerPacket := mrlib.WorkerAnswerPacket{}
 		switch (request.MsgType) {
 		case mrlib.MsgMAPREQUEST:
@@ -83,4 +84,16 @@ func main() {
 		answerPacket.RequestId = request.RequestId
 		mrlib.Write(conn, answerPacket)
 	}
+}
+
+func logJob(request mrlib.ServerRequestPacket) {
+	jobSize := 0
+	ranges := request.Ranges
+	for i := 0; i < len(ranges); i++ {
+		r := ranges[i]
+		startLine := r.StartLine
+		endLine := r.EndLine
+		jobSize += endLine - startLine
+	}
+	log.Println("Worker : Job size = ", jobSize)
 }
